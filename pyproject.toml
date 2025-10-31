@@ -1,9 +1,11 @@
 [project]
 name = "rhel-lightspeed-evaluation"
 version = "0.1.0"
-description = "Add your description here"
+description = "An evaluation project for RHEL Lightspeed using the LSC Evaluation Framework."
+authors=[]
 readme = "README.md"
-requires-python = ">=3.13"
+license = {text = "Apache"}
+requires-python = ">=3.11,<3.13"
 dependencies = [
     "deepeval>=3.6.9",
     "lightspeed-evaluation",
@@ -23,7 +25,7 @@ lightspeed-evaluation = { git = "https://github.com/arin-deloatch/lightspeed-eva
 
 [tool.ruff]
 line-length = 100
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -45,7 +47,7 @@ ignore = [
 "__init__.py" = ["F401"]  # unused imports in __init__.py
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

@@ -1,5 +1,5 @@
 <h1 align="center">RHEL Lightspeed Evaluation</h1>
-<p align="center"><i>An evaluation project for RHEL Lightspeed using the <a href="https://github.com/lightspeed-core/lightspeed-evaluation" target="_blank"> Lightspeed Evaluation Framework</a>.</i></p>
+<p align="center"><i>An evaluation project for RHEL Lightspeed using the <a href="https://github.com/lightspeed-core/lightspeed-evaluation" target="_blank"> LSC Evaluation Framework</a>.</i></p>
 
 ---
 

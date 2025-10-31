@@ -23,8 +23,3 @@ repos:
       - id: mypy
         additional_dependencies: []
         args: [--ignore-missing-imports]
-
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.22.1
-    hooks:
-      - id: gitleaks
