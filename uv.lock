@@ -2422,7 +2422,7 @@ wheels = [
 [[package]]
 name = "rhel-lightspeed-evaluation"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "deepeval" },
     { name = "lightspeed-evaluation" },
