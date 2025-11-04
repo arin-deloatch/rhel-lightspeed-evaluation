@@ -24,12 +24,18 @@ dev = [
     "pytest-cov>=6.0.0",
 ]
 
+[project.scripts]
+rls-evaluate = "rhel_lightspeed_evaluation.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.uv.sources]
 lightspeed-evaluation = { git = "https://github.com/arin-deloatch/lightspeed-evaluation", rev = "9a181e5622f901ca96fa555b54883d2903a8f5a2" }
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -49,22 +55,3 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-strict_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short"

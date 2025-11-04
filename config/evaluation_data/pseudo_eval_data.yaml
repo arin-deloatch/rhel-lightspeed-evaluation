@@ -1,0 +1,177 @@
+# Pseudo RHEL Evaluation Data - Generated for Testing
+# DO NOT USE IN PRODUCTION
+
+- conversation_group_id: rhel_selinux_mode
+  description: How do you check the current SELinux mode on a Red Hat Enterprise Linux system?
+  conversation_metrics: []
+  conversation_metrics_metadata:
+    tokens:
+      value: '1050'
+  turns:
+  - turn_id: how_do_you_check_current_selinux_mode
+    query: How do you check the current SELinux mode on a Red Hat Enterprise Linux system?
+    attachments: null
+    response: 'To check the current SELinux mode on a Red Hat Enterprise Linux (RHEL) system, you can use the `getenforce` command. This command displays the current SELinux enforcement mode.
+
+
+      Here''s how to use it:
+
+
+      ```bash
+
+      $ getenforce
+
+      ```
+
+
+      The output will be one of the following:
+
+      - **Enforcing**: SELinux is enabled and actively enforcing security policies.
+
+      - **Permissive**: SELinux is enabled but only logging policy violations without enforcing them.
+
+      - **Disabled**: SELinux is completely disabled on the system.
+
+
+      For more detailed information about the SELinux status, including the current mode, the mode from the configuration file, and the loaded policy, you can use the `sestatus` command:
+
+
+      ```bash
+
+      $ sestatus
+
+      ```
+
+
+      This will provide output similar to:
+
+
+      ```
+
+      SELinux status:                 enabled
+
+      SELinuxfs mount:                /sys/fs/selinux
+
+      SELinux root directory:         /etc/selinux
+
+      Loaded policy name:             targeted
+
+      Current mode:                   enforcing
+
+      Mode from config file:          enforcing
+
+      Policy MLS status:              enabled
+
+      Policy deny_unknown status:     allowed
+
+      Memory protection checking:     actual (secure)
+
+      Max kernel policy version:      33
+
+      ```
+
+
+      These commands help you understand the current SELinux configuration and operational state on your RHEL system.'
+    tool_calls: null
+    expected_response: Use the `getenforce` command to display the current SELinux mode
+    expected_tool_calls: null
+    turn_metrics:
+    - custom:answer_correctness
+    - geval:technical_accuracy
+    verify_script: null
+- conversation_group_id: rhel_systemd
+  description: What is the command to enable a systemd service to start automatically at boot time?
+  conversation_metrics: []
+  conversation_metrics_metadata:
+    tokens:
+      value: '1200'
+  turns:
+  - turn_id: how_to_enable_systemd_service_at_boot
+    query: What is the command to enable a systemd service to start automatically at boot time?
+    attachments: null
+    response: 'To enable a systemd service to start automatically at boot time in Red Hat Enterprise Linux, you use the `systemctl enable` command followed by the service name.
+
+
+      Here''s the basic syntax:
+
+
+      ```bash
+
+      sudo systemctl enable service_name.service
+
+      ```
+
+
+      For example, to enable the `httpd` service (Apache web server) to start automatically at boot:
+
+
+      ```bash
+
+      sudo systemctl enable httpd.service
+
+      ```
+
+
+      Or more concisely:
+
+
+      ```bash
+
+      sudo systemctl enable httpd
+
+      ```
+
+
+      **What happens when you enable a service:**
+
+      - The command creates symbolic links in the appropriate systemd target directories (typically in `/etc/systemd/system/`).
+
+      - These links point to the service unit file, usually located in `/usr/lib/systemd/system/` or `/etc/systemd/system/`.
+
+      - When the system boots, systemd reads these links and starts the enabled services according to their dependencies and target configuration.
+
+
+      **Verifying the service is enabled:**
+
+      You can check if a service is enabled with:
+
+
+      ```bash
+
+      systemctl is-enabled service_name
+
+      ```
+
+
+      **Starting the service immediately and enabling it:**
+
+      If you want to both start the service now and enable it for future boots, you can combine the commands:
+
+
+      ```bash
+
+      sudo systemctl enable --now service_name
+
+      ```
+
+
+      This is equivalent to running:
+
+
+      ```bash
+
+      sudo systemctl start service_name
+
+      sudo systemctl enable service_name
+
+      ```
+
+
+      **Note:** You need root or sudo privileges to enable services, as this modifies system configuration.'
+    tool_calls: null
+    expected_response: sudo systemctl enable service_name
+    expected_tool_calls: null
+    turn_metrics:
+    - custom:answer_correctness
+    - geval:technical_accuracy
+    verify_script: null

@@ -1,0 +1,84 @@
+# System Configuration with Panel of Judges
+# This example shows how to configure multiple LLM judges for evaluation
+
+# LLM Configuration (not used when panel is enabled)
+llm:
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.0
+  max_tokens: 500
+  timeout: 30
+  num_retries: 3
+  cache_enabled: true
+
+# Panel of Judges Configuration
+panel:
+  enabled: true
+  aggregation_strategy: "weighted_average"  # Options: average, weighted_average, majority_vote, median
+
+  # Define multiple judges
+  judges:
+    - name: "primary_judge"
+      provider: "openai"
+      model: "gpt-4"
+      temperature: 0.0
+      max_tokens: 500
+      timeout: 30
+      num_retries: 3
+
+    - name: "secondary_judge"
+      provider: "anthropic"
+      model: "claude-3-sonnet-20240229"
+      temperature: 0.0
+      max_tokens: 500
+      timeout: 30
+      num_retries: 3
+
+    - name: "tertiary_judge"
+      provider: "openai"
+      model: "gpt-3.5-turbo"
+      temperature: 0.0
+      max_tokens: 500
+      timeout: 30
+      num_retries: 3
+
+  # Weights for weighted_average strategy
+  judge_weights:
+    primary_judge: 2.0      # Higher weight for GPT-4
+    secondary_judge: 1.5    # Medium weight for Claude
+    tertiary_judge: 1.0     # Lower weight for GPT-3.5
+
+# Embedding Configuration
+embedding:
+  provider: "openai"
+  model: "text-embedding-ada-002"
+  cache_enabled: true
+
+# Output Configuration
+output:
+  csv_enabled: true
+  json_enabled: true
+  txt_enabled: true
+  save_amended_data: false
+  visualizations_enabled: true
+
+# Logging
+logging:
+  level: "INFO"
+  console_level: "INFO"
+  file_path: "results/logs/evaluation.log"
+
+# Core Configuration
+core:
+  max_threads: 4
+
+# Default Metrics (will be evaluated by panel if enabled)
+default_turn_metrics:
+  - metric: "custom:answer_correctness"
+    default: true
+    threshold: 0.8
+
+default_conversation_metrics:
+  - metric: "deepeval:conversation_completeness"
+    default: false
+    threshold: 0.7
