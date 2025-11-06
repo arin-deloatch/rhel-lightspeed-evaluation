@@ -1,46 +1,19 @@
-"""GEval integration for runtime-configurable custom evaluation criteria.
+"""
+GEval integration for configurable custom evaluation criteria.
 
 This module provides integration with DeepEval's GEval metric that allows
 defining custom evaluation criteria, parameters, and steps via:
-1. Centralized metric registry (config/geval_metrics.yaml) - recommended
-2. Runtime YAML configuration - for one-off custom metrics
-
-Usage with metric registry (recommended):
-    turns:
-      - turn_id: "turn_1"
-        query: "How do I check firewall status?"
-        response: "Use systemctl status firewalld"
-
-        turn_metrics:
-          - "geval:technical_accuracy"
-          - "geval:command_safety"
-        # No metadata needed! Metrics loaded from registry.
-
-Usage with runtime configuration (for custom metrics):
-    turns:
-      - turn_id: "turn_1"
-        query: "How do I check firewall status?"
-        response: "Use systemctl status firewalld"
-
-        turn_metrics:
-          - "geval:custom_metric"
-
-        turn_metrics_metadata:
-          geval:custom_metric:
-            criteria: "Your custom criteria..."
-            evaluation_params: [...]
-            evaluation_steps: [...]
-            threshold: 0.8
+1. Centralized metric registry (config/registry/geval_metrics.yaml)
+2. Runtime YAML configuration
 """
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 from deepeval.metrics import GEval
 from deepeval.test_case import ConversationalTestCase, LLMTestCase, LLMTestCaseParams
-
 from lightspeed_evaluation.core.llm.deepeval import DeepEvalLLMManager
 from lightspeed_evaluation.core.llm.manager import LLMManager
 
@@ -48,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class GEvalHandler:
-    """Handler for runtime-configurable GEval metrics.
+    """Handler for configurable GEval metrics.
 
     This class integrates with the lightspeed-evaluation framework
     to provide GEval evaluation with criteria defined either in:
@@ -59,34 +32,49 @@ class GEvalHandler:
     """
 
     # Class-level registry cache (shared across instances)
-    _registry: Optional[dict[str, Any]] = None
-    _registry_path: Optional[Path] = None
+    _registry: dict[str, Any] | None = None
+    _registry_path: Path | None = None
 
     def __init__(
         self,
         llm_manager: LLMManager,
-        registry_path: Optional[str] = None,
+        registry_path: str | None = None,
     ) -> None:
         """Initialize GEval handler.
 
         Args:
             llm_manager: LLM manager from lightspeed-evaluation framework
             registry_path: Optional path to metric registry YAML.
-                          If not provided, looks for config/geval_metrics.yaml
+                          If not provided, looks for config/registry/geval_metrics.yaml
                           relative to project root.
         """
         # Create DeepEval LLM Manager wrapper for GEval metrics
-        # This provides the get_llm() method that returns a LiteLLMModel
         self.deepeval_llm_manager = DeepEvalLLMManager(
             llm_manager.get_model_name(), llm_manager.get_llm_params()
         )
         self._load_registry(registry_path)
 
-    def _load_registry(self, registry_path: Optional[str] = None) -> None:
-        """Load metric registry from YAML file.
+    def _load_registry(self, registry_path: str | None = None) -> None:
+        """
+        Load the GEval metric registry from a YAML configuration file.
+
+        This method initializes the class-level `_registry`.
+        It supports both user-specified and auto-discovered paths, searching common
+        locations relative to the current working directory and the package root.
+
+        If no valid registry file is found, it logs a warning and initializes an
+        empty registry (meaning GEval will rely solely on runtime metadata).
 
         Args:
-            registry_path: Optional path to registry file
+            registry_path (str | None): Optional explicit path to a registry YAML file.
+
+        Behavior:
+            - If the registry has already been loaded, the function returns immediately.
+            - If `registry_path` is provided, it is used directly.
+            - Otherwise, common fallback paths are checked for existence.
+            - If a registry is found, it is parsed with `yaml.safe_load`.
+            - Any exceptions during file access or parsing are logged, and an empty
+            registry is used as a fallback.
         """
         # Only load once per class
         if GEvalHandler._registry is not None:
@@ -100,14 +88,17 @@ class GEvalHandler:
             # Try multiple locations
             possible_paths = [
                 Path.cwd() / "config" / "registry" / "geval_metrics.yaml",
-                Path(__file__).parent.parent.parent.parent / "config" / "registry" / "geval_metrics.yaml",
+                Path(__file__).parent.parent.parent.parent
+                / "config"
+                / "registry"
+                / "geval_metrics.yaml",
             ]
             path = None
             for p in possible_paths:
                 if p.exists():
                     path = p
                     break
-
+        # Handle missing or invalid registry
         if path is None or not path.exists():
             logger.warning(
                 f"GEval metric registry not found at expected locations. "
@@ -117,9 +108,10 @@ class GEvalHandler:
             GEvalHandler._registry = {}
             return
 
+        # Load registry file
         try:
             with open(path) as f:
-                GEvalHandler._registry = yaml.safe_load(f) or {}
+                GEvalHandler._registry = yaml.safe_load(f) or {}  # Check in system config
                 GEvalHandler._registry_path = path
                 num_metrics = len(GEvalHandler._registry) if GEvalHandler._registry else 0
                 logger.info(f"Loaded {num_metrics} GEval metrics from {path}")
@@ -131,30 +123,51 @@ class GEvalHandler:
         self,
         metric_name: str,
         conv_data: Any,
-        turn_idx: Optional[int],  # noqa: ARG002
-        turn_data: Optional[Any],
+        turn_idx: int | None,  # noqa: ARG002
+        turn_data: Any | None,
         is_conversation: bool,
-    ) -> tuple[Optional[float], str]:
-        """Evaluate using GEval with runtime configuration.
+    ) -> tuple[float | None, str]:
+        """
+        Evaluate using GEval with runtime configuration.
 
-        This method extracts GEval configuration from metadata and
-        performs evaluation.
+        This method is the central entry point for running GEval evaluations.
+        It retrieves the appropriate metric configuration (from registry or runtime
+        metadata), extracts evaluation parameters, and delegates the actual scoring
+        to either conversation-level or turn-level evaluators.
 
-        Args:
-            metric_name: Name of the metric (e.g., "technical_accuracy")
-            conv_data: Conversation data object
-            turn_idx: Turn index (unused, kept for interface compatibility)
-            turn_data: Turn data object (for turn-level metrics)
-            is_conversation: Whether this is conversation-level evaluation
+         Args:
+            metric_name (str):
+                The name of the metric to evaluate (e.g., "technical_accuracy").
+            conv_data (Any):
+                The conversation data object containing context, messages, and
+                associated metadata.
+            turn_idx (int | None):
+                The index of the current turn in the conversation.
+                (Currently unused but kept for interface compatibility.)
+            turn_data (Any | None):
+                The turn-level data object, required when evaluating turn-level metrics.
+            is_conversation (bool):
+                Indicates whether the evaluation should run on the entire
+                conversation (`True`) or on an individual turn (`False`).
 
         Returns:
-            Tuple of (score, reason)
+        tuple[float | None, str]:
+            A tuple containing:
+              - **score** (float | None): The computed metric score, or None if evaluation failed.
+              - **reason** (str): A descriptive reason or error message.
+
+        Behavior:
+        1. Fetch GEval configuration from metadata using `_get_geval_config()`.
+        2. Validate that required fields (e.g., "criteria") are present.
+        3. Extract key parameters such as criteria, evaluation steps, and threshold.
+        4. Delegate to `_evaluate_conversation()` or `_evaluate_turn()` depending
+           on the `is_conversation` flag.
         """
         # Extract GEval configuration from metadata
-        geval_config = self._get_geval_config(
-            metric_name, conv_data, turn_data, is_conversation
-        )
+        # May come from runtime metadata or a preloaded registry
+        geval_config = self._get_geval_config(metric_name, conv_data, turn_data, is_conversation)
 
+        # If no configuration is available, return early with an informative message.
         if not geval_config:
             return None, f"GEval configuration not found for metric '{metric_name}'"
 
@@ -164,10 +177,12 @@ class GEvalHandler:
         evaluation_steps = geval_config.get("evaluation_steps")
         threshold = geval_config.get("threshold", 0.5)
 
+        # The criteria field defines what the model is being judged on.
+        # Without it, we cannot perform evaluation. Evaluation steps can be generated
         if not criteria:
             return None, "GEval requires 'criteria' in configuration"
 
-        # Perform evaluation based on level
+        # Perform evaluation based on level (turn or conversation)
         if is_conversation:
             return self._evaluate_conversation(
                 conv_data, criteria, evaluation_params, evaluation_steps, threshold
@@ -177,22 +192,32 @@ class GEvalHandler:
                 turn_data, criteria, evaluation_params, evaluation_steps, threshold
             )
 
-    def _convert_evaluation_params(
-        self, params: list[str]
-    ) -> Optional[list[LLMTestCaseParams]]:
-        """Convert string params to LLMTestCaseParams enum values.
+    def _convert_evaluation_params(self, params: list[str]) -> list[LLMTestCaseParams] | None:
+        """
+        Convert a list of string parameter names into `LLMTestCaseParams` enum values.
+
+        This helper ensures that the evaluation parameters passed into GEval are properly
+        typed as `LLMTestCaseParams` (used by DeepEval’s test-case schema). If any parameter is not a
+        valid enum member, the function treats the entire parameter list as "custom" and returns `None`.
+        This allows GEval to automatically infer the required fields at runtime rather than forcing
+        strict schema compliance.
 
         Args:
-            params: List of parameter strings
-
+            params (list[str]):
+                A list of string identifiers (e.g., ["input", "actual_output"]).
+                These typically come from a YAML or runtime configuration and
+                may not always match enum names exactly.
         Returns:
             List of LLMTestCaseParams enum values, or None if params are custom strings
         """
+        # Return early if no parameters were supplied
         if not params:
             return None
 
         # Try to convert strings to enum values
-        converted = []
+        converted: list[LLMTestCaseParams] = []
+
+        # Attempt to convert each string into a valid enum value
         for param in params:
             try:
                 # Try to match as enum value (e.g., "INPUT", "ACTUAL_OUTPUT")
@@ -207,6 +232,7 @@ class GEvalHandler:
                 )
                 return None
 
+        # Return the successfully converted list, or None if it ended up empty
         return converted if converted else None
 
     def _evaluate_turn(
@@ -214,21 +240,33 @@ class GEvalHandler:
         turn_data: Any,
         criteria: str,
         evaluation_params: list[str],
-        evaluation_steps: Optional[list[str]],
+        evaluation_steps: list[str] | None,
         threshold: float,
-    ) -> tuple[Optional[float], str]:
-        """Evaluate a single turn using GEval.
+    ) -> tuple[float | None, str]:
+        """
+            Evaluate a single turn using GEval.
 
-        Args:
-            turn_data: Turn data object
-            criteria: Evaluation criteria description
-            evaluation_params: List of evaluation parameters (strings)
-            evaluation_steps: Optional list of evaluation steps
-            threshold: Score threshold
+            Args:
+            turn_data (Any):
+                The turn-level data object containing fields like query, response,
+                expected_response, and context.
+            criteria (str):
+                Natural-language description of what the evaluation should judge.
+                Example: "Assess factual correctness and command validity."
+            evaluation_params (list[str]):
+                A list of string parameters defining which fields to include
+                (e.g., ["input", "actual_output"]).
+            evaluation_steps (list[str] | None):
+                Optional step-by-step evaluation guidance for the model.
+            threshold (float):
+                Minimum score threshold that determines pass/fail behavior.
 
         Returns:
-            Tuple of (score, reason)
+            tuple[float | None, str]:
+                A tuple of (score, reason). If evaluation fails, score will be None
+                and the reason will contain an error message.
         """
+        # Validate that we actually have turn data
         if not turn_data:
             return None, "Turn data required for turn-level GEval"
 
@@ -252,9 +290,10 @@ class GEvalHandler:
         if evaluation_steps:
             metric_kwargs["evaluation_steps"] = evaluation_steps
 
+        # Instantiate the GEval metric object
         metric = GEval(**metric_kwargs)
 
-        # Create test case
+        # Create test case for a single turn
         test_case = LLMTestCase(
             input=turn_data.query,
             actual_output=turn_data.response or "",
@@ -266,7 +305,11 @@ class GEvalHandler:
         try:
             metric.measure(test_case)
             score = metric.score if metric.score is not None else 0.0
-            reason = str(metric.reason) if hasattr(metric, "reason") and metric.reason else "No reason provided"
+            reason = (
+                str(metric.reason)
+                if hasattr(metric, "reason") and metric.reason
+                else "No reason provided"
+            )
             return score, reason
         except Exception as e:
             return None, f"GEval evaluation error: {str(e)}"
@@ -276,20 +319,31 @@ class GEvalHandler:
         conv_data: Any,
         criteria: str,
         evaluation_params: list[str],
-        evaluation_steps: Optional[list[str]],
+        evaluation_steps: list[str] | None,
         threshold: float,
-    ) -> tuple[Optional[float], str]:
-        """Evaluate a conversation using GEval.
+    ) -> tuple[float | None, str]:
+        """
+        Evaluate a conversation using GEval.
+
+        This method aggregates all conversation turns into a DeepEval
+        ConversationalTestCase and evaluates the conversation against
+        the provided criteria.
 
         Args:
-            conv_data: Conversation data object
-            criteria: Evaluation criteria description
-            evaluation_params: List of evaluation parameters (strings)
-            evaluation_steps: Optional list of evaluation steps
-            threshold: Score threshold
+            conv_data (Any):
+                Conversation data object containing all turns.
+            criteria (str):
+                Description of the overall evaluation goal.
+            evaluation_params (list[str]):
+                List of field names to include (same semantics as turn-level).
+            evaluation_steps (list[str] | None):
+                Optional instructions guiding how the evaluation should proceed.
+            threshold (float):
+                Minimum acceptable score before the metric is considered failed.
 
         Returns:
-            Tuple of (score, reason)
+            tuple[float | None, str]:
+                Tuple containing (score, reason). Returns None on error.
         """
         # Convert evaluation_params to enum values if valid, otherwise use defaults
         converted_params = self._convert_evaluation_params(evaluation_params)
@@ -297,7 +351,7 @@ class GEvalHandler:
             # If no valid params, use sensible defaults for conversation evaluation
             converted_params = [LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT]
 
-        # Create GEval metric with runtime configuration
+        # Configure the GEval metric for conversation-level evaluation
         metric_kwargs: dict[str, Any] = {
             "name": "GEval Conversation Metric",
             "criteria": criteria,
@@ -311,9 +365,10 @@ class GEvalHandler:
         if evaluation_steps:
             metric_kwargs["evaluation_steps"] = evaluation_steps
 
+        # Instantiate the GEval metric object
         metric = GEval(**metric_kwargs)
 
-        # Convert turns to DeepEval format
+        # Convert conversation turns into DeepEval-compatible test cases
         llm_test_cases = []
         for turn in conv_data.turns:
             llm_test_cases.append(
@@ -322,14 +377,18 @@ class GEvalHandler:
                     actual_output=turn.response or "",
                 )
             )
-
+        # Wrap the list in a conversational test case
         test_case = ConversationalTestCase(turns=llm_test_cases)
 
         # Evaluate
         try:
             metric.measure(test_case)  # type: ignore[arg-type]
             score = metric.score if metric.score is not None else 0.0
-            reason = str(metric.reason) if hasattr(metric, "reason") and metric.reason else "No reason provided"
+            reason = (
+                str(metric.reason)
+                if hasattr(metric, "reason") and metric.reason
+                else "No reason provided"
+            )
             return score, reason
         except Exception as e:
             return None, f"GEval evaluation error: {str(e)}"
@@ -338,45 +397,63 @@ class GEvalHandler:
         self,
         metric_name: str,
         conv_data: Any,
-        turn_data: Optional[Any],
+        turn_data: Any | None,
         is_conversation: bool,
-    ) -> Optional[dict[str, Any]]:
-        """Extract GEval configuration from metadata or registry.
+    ) -> dict[str, Any] | None:
+        """E
+        xtract GEval configuration from metadata or registry.
 
-        Priority order (highest to lowest):
-        1. Turn-level metadata (for turn metrics) - runtime override
-        2. Conversation-level metadata - runtime override
-        3. Metric registry (config/geval_metrics.yaml) - shared definitions
+         The method checks multiple sources in priority order:
+            1. Turn-level metadata (runtime override)
+            2. Conversation-level metadata (runtime override)
+            3. Metric registry (shared, persistent YAML definitions)
 
-        Args:
-            metric_name: Name of the metric
-            conv_data: Conversation data object
-            turn_data: Turn data object
-            is_conversation: Whether this is conversation-level evaluation
+         Args:
+            metric_name (str):
+                Name of the metric to retrieve (e.g., "completeness").
+            conv_data (Any):
+                The full conversation data object, which may contain
+                conversation-level metadata.
+            turn_data (Any | None):
+                Optional turn-level data object, for per-turn metrics.
+            is_conversation (bool):
+                True if evaluating a conversation-level metric, False for turn-level.
 
         Returns:
-            Configuration dictionary or None
+            dict[str, Any] | None:
+                The GEval configuration dictionary if found, otherwise None.
         """
         metric_key = f"geval:{metric_name}"
 
-        # Priority 1: Check turn-level metadata (runtime override)
-        if not is_conversation and turn_data and hasattr(turn_data, "turn_metrics_metadata"):
-            if turn_data.turn_metrics_metadata and metric_key in turn_data.turn_metrics_metadata:
-                logger.debug(f"Using runtime metadata for metric '{metric_name}'")
-                return turn_data.turn_metrics_metadata[metric_key]
+        # Turn level metadata override
+        # Used when individual turns define custom GEval settings
+        if (
+            not is_conversation
+            and turn_data
+            and hasattr(turn_data, "turn_metrics_metadata")
+            and turn_data.turn_metrics_metadata
+            and metric_key in turn_data.turn_metrics_metadata
+        ):
+            logger.debug(f"Using runtime metadata for metric '{metric_name}'")
+            return turn_data.turn_metrics_metadata[metric_key]
 
-        # Priority 2: Check conversation-level metadata (runtime override)
-        if hasattr(conv_data, "conversation_metrics_metadata"):
-            if conv_data.conversation_metrics_metadata and metric_key in conv_data.conversation_metrics_metadata:
-                logger.debug(f"Using runtime metadata for metric '{metric_name}'")
-                return conv_data.conversation_metrics_metadata[metric_key]
+        # Conversation-level metadata override
+        # Used when the conversation defines shared GEval settings
+        if (
+            hasattr(conv_data, "conversation_metrics_metadata")
+            and conv_data.conversation_metrics_metadata
+            and metric_key in conv_data.conversation_metrics_metadata
+        ):
+            logger.debug(f"Using runtime metadata for metric '{metric_name}'")
+            return conv_data.conversation_metrics_metadata[metric_key]
 
-        # Priority 3: Check metric registry
+        # Registry definition
+        # Fallback to shared YAML registry if no runtime metadata is found
         if GEvalHandler._registry and metric_name in GEvalHandler._registry:
             logger.debug(f"Using registry definition for metric '{metric_name}'")
             return GEvalHandler._registry[metric_name]
 
-        # Not found anywhere
+        # Config not found anywhere
         logger.warning(
             f"Metric '{metric_name}' not found in runtime metadata or registry. "
             f"Available registry metrics: {list(GEvalHandler._registry.keys()) if GEvalHandler._registry else []}"
@@ -385,7 +462,8 @@ class GEvalHandler:
 
 
 class GEvalMetrics:
-    """GEval metrics handler for lightspeed-evaluation framework.
+    """
+    GEval metrics handler for lightspeed-evaluation framework.
 
     This class implements the metric handler interface expected by
     MetricsEvaluator, allowing GEval metrics to be used alongside
@@ -395,7 +473,7 @@ class GEvalMetrics:
     def __init__(
         self,
         llm_manager: LLMManager,
-        registry_path: Optional[str] = None,
+        registry_path: str | None = None,
     ) -> None:
         """Initialize GEval metrics handler.
 
@@ -410,7 +488,7 @@ class GEvalMetrics:
         metric_name: str,
         conv_data: Any,
         evaluation_scope: Any,
-    ) -> tuple[Optional[float], str]:
+    ) -> tuple[float | None, str]:
         """Evaluate a GEval metric.
 
         This method implements the standard metric handler interface
