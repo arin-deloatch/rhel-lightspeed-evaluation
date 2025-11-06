@@ -9,7 +9,6 @@ import argparse
 import sys
 import traceback
 from pathlib import Path
-from typing import Optional
 
 from lightspeed_evaluation.core.llm.manager import LLMManager
 from lightspeed_evaluation.core.output import OutputHandler
@@ -43,7 +42,7 @@ class ExtendedEvaluationPipeline(EvaluationPipeline):
         # Initialize GEval handler with config from system.yaml
         geval_handler = GEvalMetrics(
             llm_manager=llm_manager,
-            registry_path=self.system_config.geval.registry_path,
+            registry_path=self.system_config.geval.registry_path,  # type: ignore
         )
 
         # Register GEval handler in the metrics evaluator
@@ -52,7 +51,7 @@ class ExtendedEvaluationPipeline(EvaluationPipeline):
     def run_evaluation(
         self,
         evaluation_data: list,
-        original_data_path: Optional[str] = None,
+        original_data_path: str | None = None,
     ) -> list:
         """Run evaluation with auto-applied default GEval metrics.
 
@@ -83,7 +82,7 @@ class ExtendedEvaluationPipeline(EvaluationPipeline):
         Args:
             evaluation_data: List of EvaluationData objects to modify
         """
-        geval_config = self.system_config.geval
+        geval_config = self.system_config.geval  # type: ignore
 
         # Only proceed if GEval is enabled and defaults are configured
         if not geval_config.enabled:
@@ -123,8 +122,8 @@ class ExtendedEvaluationPipeline(EvaluationPipeline):
 def run_evaluation(
     system_config_path: str,
     evaluation_data_path: str,
-    output_dir: Optional[str] = None,
-) -> Optional[dict[str, int]]:
+    output_dir: str | None = None,
+) -> dict[str, int] | None:
     """Run evaluation with RHEL Lightspeed extensions.
 
     This follows the same pattern as the framework's runner but uses
@@ -211,18 +210,16 @@ def main() -> int:
     Returns:
         Exit code
     """
-    parser = argparse.ArgumentParser(
-        description="RHEL Lightspeed Evaluation with GEval support"
-    )
+    parser = argparse.ArgumentParser(description="RHEL Lightspeed Evaluation with GEval support")
     parser.add_argument(
         "--system-config",
-        default="config/system.yaml",
-        help="Path to system configuration file (default: config/system.yaml)",
+        default="config/system/system.example.yaml",
+        help="Path to system configuration file (default: config/system/system.yaml)",
     )
     parser.add_argument(
         "--eval-data",
-        default="config/evaluation_data.yaml",
-        help="Path to evaluation data file (default: config/evaluation_data.yaml)",
+        default="config/evaluation_data/pseudo_eval_data.yaml",
+        help="Path to evaluation data file (default: config/evaluation_data/pseudo_eval_data.yaml)",
     )
     parser.add_argument("--output-dir", help="Override output directory (optional)")
 

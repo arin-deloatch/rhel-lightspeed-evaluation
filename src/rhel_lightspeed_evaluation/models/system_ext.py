@@ -1,10 +1,7 @@
 """System configuration models."""
 
-from typing import Any, Optional, Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from lightspeed_evaluation.core.models import APIConfig
 from lightspeed_evaluation.core.constants import (
     DEFAULT_API_TIMEOUT,
     DEFAULT_BASE_FILENAME,
@@ -28,6 +25,8 @@ from lightspeed_evaluation.core.constants import (
     SUPPORTED_GRAPH_TYPES,
     SUPPORTED_OUTPUT_TYPES,
 )
+from lightspeed_evaluation.core.models import APIConfig
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LLMConfig(BaseModel):
@@ -73,37 +72,27 @@ class LLMConfig(BaseModel):
 
 
 class JudgeConfig(LLMConfig):
-    """Configuration for an individual judge in a panel.
-
-    Inherits from LLMConfig and overrides fields to make provider/model required
-    and set different defaults. Cache fields are inherited but unused - judges
-    inherit caching behavior via the panel/LLM managers.
-    """
+    """Configuration for an individual judge in a panel."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., min_length=1, description="Judge identifier")
     provider: str = Field(
-       default=DEFAULT_LLM_PROVIDER, 
-       min_length=1, 
-       description="LLM provider (openai, watsonx, azure, etc.)"
+        default=DEFAULT_LLM_PROVIDER,
+        min_length=1,
+        description="LLM provider (openai, watsonx, azure, etc.)",
     )
     model: str = Field(
-        default=DEFAULT_LLM_MODEL, 
-        min_length=1, 
-        description="Model identifier or deployment name"
+        default=DEFAULT_LLM_MODEL, min_length=1, description="Model identifier or deployment name"
     )
     temperature: float = Field(
-        default=DEFAULT_LLM_TEMPERATURE, 
-        ge=0.0, 
-        le=2.0, 
-        description="Sampling temperature"
+        default=DEFAULT_LLM_TEMPERATURE, ge=0.0, le=2.0, description="Sampling temperature"
     )
     # max_tokens, timeout, num_retries, cache_dir, cache_enabled inherited from LLMConfig
 
 
 class PanelConfig(BaseModel):
-    """Panel-of-judges configuration (feature-flag only in PR-1)."""
+    """Panel-of-judges configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,20 +104,18 @@ class PanelConfig(BaseModel):
         default="average",
         description="How to aggregate per-judge scores into a single score.",
     )
-    judge_weights: Optional[dict[str, float]] = Field(
+    judge_weights: dict[str, float] | None = Field(
         default=None,
         description="Weights for 'weighted_average' aggregation (keys are judge names).",
     )
-    judges: Optional[list[JudgeConfig]] = Field(
+    judges: list[JudgeConfig] | None = Field(
         default=None,
         description="List of judge configurations. Required when enable_panel = true.",
     )
 
     @field_validator("judge_weights")
     @classmethod
-    def _validate_weights(
-        cls, v: Optional[dict[str, float]]
-    ) -> Optional[dict[str, float]]:
+    def _validate_weights(cls, v: dict[str, float] | None) -> dict[str, float] | None:
         if v is None:
             return v
         if any(w < 0 for w in v.values()):
@@ -151,7 +138,7 @@ class EmbeddingConfig(BaseModel):
         min_length=1,
         description="Embedding model identifier",
     )
-    provider_kwargs: Optional[dict[str, Any]] = Field(
+    provider_kwargs: dict[str, Any] | None = Field(
         default=None,
         description="Embedding provider arguments, e.g. model_kwargs: device:cpu",
     )
@@ -169,9 +156,7 @@ class EmbeddingConfig(BaseModel):
     def _validate_provider(cls, v: str) -> str:
         allowed = {"openai", "huggingface"}
         if v not in allowed:
-            raise ValueError(
-                f"Unsupported embedding provider '{v}'. Allowed: {sorted(allowed)}"
-            )
+            raise ValueError(f"Unsupported embedding provider '{v}'. Allowed: {sorted(allowed)}")
         return v
 
 
@@ -180,9 +165,7 @@ class OutputConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    output_dir: str = Field(
-        default=DEFAULT_OUTPUT_DIR, description="Output directory for results"
-    )
+    output_dir: str = Field(default=DEFAULT_OUTPUT_DIR, description="Output directory for results")
     base_filename: str = Field(
         default=DEFAULT_BASE_FILENAME, description="Base filename for output files"
     )
@@ -202,8 +185,7 @@ class OutputConfig(BaseModel):
         for column in v:
             if column not in SUPPORTED_CSV_COLUMNS:
                 raise ValueError(
-                    f"Unsupported CSV column: {column}. "
-                    f"Supported columns: {SUPPORTED_CSV_COLUMNS}"
+                    f"Unsupported CSV column: {column}. Supported columns: {SUPPORTED_CSV_COLUMNS}"
                 )
         return v
 
@@ -231,9 +213,7 @@ class LoggingConfig(BaseModel):
     package_level: str = Field(
         default=DEFAULT_LOG_PACKAGE_LEVEL, description="Package logging level"
     )
-    log_format: str = Field(
-        default=DEFAULT_LOG_FORMAT, description="Log message format"
-    )
+    log_format: str = Field(default=DEFAULT_LOG_FORMAT, description="Log message format")
     show_timestamps: bool = Field(
         default=DEFAULT_LOG_SHOW_TIMESTAMPS, description="Show timestamps in logs"
     )
@@ -250,9 +230,7 @@ class VisualizationConfig(BaseModel):
     figsize: list[int] = Field(
         default=DEFAULT_VISUALIZATION_FIGSIZE, description="Figure size [width, height]"
     )
-    dpi: int = Field(
-        default=DEFAULT_VISUALIZATION_DPI, ge=50, description="Resolution in DPI"
-    )
+    dpi: int = Field(default=DEFAULT_VISUALIZATION_DPI, ge=50, description="Resolution in DPI")
     enabled_graphs: list[str] = Field(
         default=[],
         description="List of graph types to generate",
@@ -276,7 +254,7 @@ class CoreConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    max_threads: Optional[int] = Field(
+    max_threads: int | None = Field(
         default=None,
         description="Maximum threads for multithreading eval",
         gt=0,
@@ -312,19 +290,13 @@ class SystemConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     # Individual configuration models
-    core: CoreConfig = Field(
-        default_factory=CoreConfig, description="Core eval configuration"
-    )
+    core: CoreConfig = Field(default_factory=CoreConfig, description="Core eval configuration")
     llm: LLMConfig = Field(default_factory=LLMConfig, description="LLM configuration")
     embedding: EmbeddingConfig = Field(
         default_factory=EmbeddingConfig, description="Embeddings configuration"
     )
-    api: APIConfig = Field(
-        default_factory=APIConfig, description="API configuration"
-    )
-    output: OutputConfig = Field(
-        default_factory=OutputConfig, description="Output configuration"
-    )
+    api: APIConfig = Field(default_factory=APIConfig, description="API configuration")
+    output: OutputConfig = Field(default_factory=OutputConfig, description="Output configuration")
     logging: LoggingConfig = Field(
         default_factory=LoggingConfig, description="Logging configuration"
     )

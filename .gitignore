@@ -185,3 +185,6 @@ eval_output*/
 # Keeping experimental changes here
 wip*/
 depr*/
+
+# Proprietary config files for rls-evaluation
+prod_config*/

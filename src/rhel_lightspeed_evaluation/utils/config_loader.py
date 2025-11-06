@@ -59,7 +59,5 @@ class ExtendedConfigLoader(ConfigLoader):
             panel=PanelConfig(**config_data.get("panel", {})),
             geval=GEvalConfig(**config_data.get("geval", {})),
             default_turn_metrics_metadata=metrics_metadata.get("turn_level", {}),
-            default_conversation_metrics_metadata=metrics_metadata.get(
-                "conversation_level", {}
-            ),
+            default_conversation_metrics_metadata=metrics_metadata.get("conversation_level", {}),
         )

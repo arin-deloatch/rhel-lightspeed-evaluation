@@ -13,6 +13,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "deepeval>=3.6.9",
     "lightspeed-evaluation",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [project.optional-dependencies]
