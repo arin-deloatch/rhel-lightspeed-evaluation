@@ -1,0 +1,132 @@
+"""LightSpeed Evaluation Framework (RHEL Extensions) - Main Evaluation Runner."""
+
+import argparse
+import sys
+import traceback
+from typing import Optional
+
+from rhel_lightspeed_evaluation.extensions.core.system import ConfigLoaderExt
+
+
+def run_evaluation(  # pylint: disable=too-many-locals
+    system_config_path: str, evaluation_data_path: str, output_dir: Optional[str] = None
+) -> Optional[dict[str, int]]:
+    """Run the complete evaluation pipeline using EvaluationPipeline.
+
+    Args:
+        system_config_path: Path to system.yaml
+        evaluation_data_path: Path to evaluation_data.yaml
+        output_dir: Optional override for output directory
+
+    Returns:
+        dict: Summary statistics with keys TOTAL, PASS, FAIL, ERROR
+    """
+    print("🚀 LightSpeed Evaluation Framework")
+    print("=" * 50)
+
+    try:
+        # Step 0: Setup environment from config
+        print("🔧 Loading Configuration & Setting up environment and logging...")
+        loader = ConfigLoaderExt()
+        system_config = loader.load_system_config(system_config_path)
+
+        # pylint: disable=import-outside-toplevel
+
+        # Step 1: Import heavy modules once environment & logging is set
+        print("\n📋 Loading Heavy Modules...")
+        from rhel_lightspeed_evaluation.extensions.core.output import OutputHandlerExt
+        from lightspeed_evaluation.core.output.statistics import calculate_basic_stats
+        from lightspeed_evaluation.core.system import DataValidator
+        from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import EvaluationPipelineExt
+
+        # pylint: enable=import-outside-toplevel
+
+        print("✅ Environment setup complete, modules loaded")
+
+        llm_config = system_config.llm
+        output_config = system_config.output
+
+        # Step 2: Load and validate evaluation data
+        data_validator = DataValidator(
+            api_enabled=system_config.api.enabled,
+            fail_on_invalid_data=system_config.core.fail_on_invalid_data,
+        )
+        evaluation_data = data_validator.load_evaluation_data(evaluation_data_path)
+
+        print(f"✅ System config: {llm_config.provider}/{llm_config.model}")
+        print(f"✅ Evaluation data: {len(evaluation_data)} conversation groups")
+
+        # Step 3: Run evaluation with pre-loaded data
+        print("\n⚙️ Initializing Evaluation Pipeline...")
+        pipeline = EvaluationPipelineExt(loader, output_dir)
+
+        print("\n🔄 Running Evaluation...")
+        try:
+            results = pipeline.run_evaluation(evaluation_data, evaluation_data_path)
+        finally:
+            pipeline.close()
+
+        # Step 4: Generate reports and calculate stats
+        print("\n📊 Generating Reports...")
+        output_handler = OutputHandlerExt(
+            output_dir=output_dir or output_config.output_dir,
+            base_filename=output_config.base_filename,
+            system_config=system_config,
+        )
+
+        # Generate reports based on configuration
+        output_handler.generate_reports(results)  # type: ignore[arg-type]
+
+        print("\n🎉 Evaluation Complete!")
+        print(f"📊 {len(results)} evaluations completed")
+        print(f"📁 Reports generated in: {output_handler.output_dir}")
+
+        # Step 5: Final Summary
+        summary = calculate_basic_stats(results)  # type: ignore[arg-type]
+        print(
+            f"✅ Pass: {summary['PASS']}, ❌ Fail: {summary['FAIL']}, ⚠️ Error: {summary['ERROR']}"
+        )
+        if summary["ERROR"] > 0:
+            print(
+                f"⚠️ {summary['ERROR']} evaluations had errors - check detailed report"
+            )
+
+        return {
+            "TOTAL": summary["TOTAL"],
+            "PASS": summary["PASS"],
+            "FAIL": summary["FAIL"],
+            "ERROR": summary["ERROR"],
+        }
+
+    except (FileNotFoundError, ValueError, RuntimeError) as e:
+        print(f"\n❌ Evaluation failed: {e}")
+        traceback.print_exc()
+        return None
+
+
+def main() -> int:
+    """Command line interface."""
+    parser = argparse.ArgumentParser(
+        description="LightSpeed Evaluation Framework / Tool",
+    )
+    parser.add_argument(
+        "--system-config",
+        default="config/system.yaml",
+        help="Path to system configuration file (default: config/system.yaml)",
+    )
+    parser.add_argument(
+        "--eval-data",
+        default="config/evaluation_data.yaml",
+        help="Path to evaluation data file (default: config/evaluation_data.yaml)",
+    )
+    parser.add_argument("--output-dir", help="Override output directory (optional)")
+
+    args = parser.parse_args()
+
+    summary = run_evaluation(args.system_config, args.eval_data, args.output_dir)
+
+    return 0 if summary is not None else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
