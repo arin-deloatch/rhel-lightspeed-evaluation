@@ -10,7 +10,8 @@
 This project provides evaluation configurations and test data specifically for RHEL Lightspeed, leveraging the comprehensive evaluation capabilities of the lightspeed-evaluation framework including:
 
 - **Multi-Framework Metrics**: Ragas, DeepEval, and custom evaluations
-- **GEval Integration**: Runtime-configurable custom evaluation criteria with centralized metric registry
+- **Custom Runtime Metrics**: Define GEval metrics inline or in system config
+- **Panel of Judges**: Multi-model evaluation for robust assessment
 - **Turn & Conversation-Level Analysis**: Individual queries and multi-turn conversations
 - **Multiple Evaluation Types**: Response quality, context relevance, tool calls, and script-based verification
 - **Flexible LLM Support**: OpenAI, Watsonx, Gemini, Vertex AI, vLLM and others
@@ -27,17 +28,13 @@ make install-dev
 
 ### Basic Configuration
 
-1. **Copy the example system configuration:**
-   ```bash
-   cp config/system/system.example.yaml config/system/system.yaml
-   ```
-
-2. **Set up your LLM provider credentials:**
+1. **Set up your LLM provider credentials:**
    ```bash
    # For OpenAI
    export OPENAI_API_KEY="your-api-key"
 
    # For Vertex AI
+   export GOOGLE_CLOUD_PROJECT="your-cloud-project"
    export GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
 
    # For Watsonx
@@ -45,13 +42,13 @@ make install-dev
    export WATSONX_URL="your-instance-url"
    ```
 
-3. **Configure your system.yaml:**
+2. **Configure your `config/system.yaml`:**
    ```yaml
    llm:
      provider: vertex  # or openai, watsonx, etc.
      model: gemini-2.0-flash
      temperature: 0.0
-     max_tokens: 500
+     max_tokens: 512
    ```
 
 ### Running Evaluations
@@ -64,138 +61,83 @@ rls-evaluate
 
 # Specify custom paths
 rls-evaluate \
-  --system-config config/system/system.yaml \
-  --eval-data config/evaluation_data/pseudo_eval_data.yaml
+  --system-config config/system.yaml \
+  --eval-data config/evaluation_data.yaml
 
 # Override output directory
 rls-evaluate \
-  --system-config config/system/system.yaml \
-  --eval-data config/evaluation_data/pseudo_eval_data.yaml \
+  --system-config config/system.yaml \
+  --eval-data config/evaluation_data.yaml \
   --output-dir ./my_results
 ```
 
-#### Using Python
 
-```python
-from rhel_lightspeed_evaluation.cli import run_evaluation
 
-results = run_evaluation(
-    system_config_path="config/system/system.yaml",
-    evaluation_data_path="config/scenarios/basic/my_eval.yaml",
-    output_dir="./eval_output"
-)
-```
+## Metrics
 
-## GEval Features
+The framework supports multiple types of custom metrics for evaluating LLM responses:
 
-### Metric Registry
+### Available Metric Types
 
-Define reusable GEval metrics once in `config/registry/geval_metrics.yaml` and reference them across all evaluations:
+- **Ragas Metrics**: Response relevancy, faithfulness, context recall, context precision, context relevance
+- **DeepEval Metrics**: Conversation completeness, conversation relevancy, knowledge retention
+- **Custom Metrics**: Answer correctness, intent evaluation, tool call evaluation
+- **Script-Based Metrics**: Infrastructure/environment validation
+- **GEval Metrics**: Flexible LLM-as-judge metrics with custom criteria
 
-**Registry Definition:**
-```yaml
-# config/geval_metrics.yaml
-technical_accuracy:
-  criteria: |
-    Evaluate the technical accuracy of the RHEL command recommendation.
-    Consider:
-    1. Is the command syntactically correct for RHEL?
-    2. Does it accomplish the stated goal?
-    3. Does it follow RHEL best practices?
-  evaluation_steps:
-    - "Verify the command syntax is valid for RHEL"
-    - "Confirm the command achieves the intended result"
-    - "Assess alignment with RHEL best practices"
-  threshold: 0.8
+### GEval Metrics
 
-command_safety:
-  criteria: |
-    Evaluate the safety of the recommended command.
-    Consider destructive potential and appropriate warnings.
-  threshold: 0.9
-```
+GEval metrics allow you to define custom evaluation criteria that are assessed by an LLM judge. You can define them in two ways:
 
-**Using in Evaluations:**
-```yaml
-# config/scenarios/my_eval.yaml
-conversations:
-  - conversation_group_id: "test_001"
-    turns:
-      - turn_id: "turn_1"
-        query: "How do I check firewall status?"
-        response: "Use systemctl status firewalld"
+#### 1. System-Level Metrics (Reusable)
 
-        # Simply reference metrics from registry
-        turn_metrics:
-          - "geval:technical_accuracy"
-          - "geval:command_safety"
-        # No metadata needed! Loaded from registry
-```
-
-### Default Metrics Auto-Apply
-
-Configure default GEval metrics in `system.yaml` to automatically apply them to all evaluations:
+Define metrics in `config/system.yaml` under `metrics_metadata` for reuse across all evaluations:
 
 ```yaml
 # config/system.yaml
-geval:
-  enabled: true
-  registry_path: "config/geval_metrics.yaml"
-
-  # Auto-applied to all turns unless overridden
-  default_turn_metrics:
-    - "geval:technical_accuracy"
-    - "geval:command_safety"
-    - "geval:security_awareness"
-
-  # Auto-applied to all conversations
-  default_conversation_metrics:
-    - "geval:conversation_coherence"
-    - "geval:conversation_helpfulness"
+metrics_metadata:
+  turn_level:
+    "geval:technical_accuracy":
+      criteria: |
+        Assess whether the response provides technically accurate information,
+        commands, code, syntax, and follows relevant best practices.
+      evaluation_params:
+        - query
+        - response
+        - expected_response
+      evaluation_steps:
+        - "Verify that the provided syntax is valid"
+        - "Check if appropriate modules/functions are used"
+        - "Assess alignment with best practices"
+      threshold: 0.7
+      description: "Technical accuracy of commands/code"
 ```
 
-Now you can create evaluations without specifying metrics:
+Use in evaluations by referencing the metric name:
 
 ```yaml
-conversations:
-  - conversation_group_id: "test_001"
-    turns:
-      - turn_id: "turn_1"
-        query: "How do I check firewall status?"
-        response: "Use systemctl status firewalld"
-        # Metrics auto-applied from system.yaml!
+# config/evaluation_data.yaml
+turns:
+  - turn_id: "turn_1"
+    query: "How do I check firewall status?"
+    response: "Use systemctl status firewalld"
+    turn_metrics:
+      - geval:technical_accuracy
 ```
 
-### Example Registry Metrics
+#### 2. Inline Custom Metrics
 
-**Turn-Level Metrics:**
-- `geval:technical_accuracy` - Command correctness and accuracy
-- `geval:command_safety` - Safety assessment
-- `geval:security_awareness` - Security implications
-- `geval:completeness` - Response completeness
-- `geval:rhel_version_awareness` - RHEL version appropriateness
-- `geval:troubleshooting_methodology` - Diagnostic approach quality
-
-**Conversation-Level Metrics:**
-- `geval:conversation_coherence` - Flow and consistency
-- `geval:conversation_helpfulness` - Problem-solving effectiveness
-
-### Custom Runtime Metrics
-
-For one-off custom metrics, define them inline:
+For one-off evaluations, define GEval metrics directly in your evaluation data:
 
 ```yaml
 turns:
   - turn_id: "turn_1"
     query: "What monitoring tools are available?"
     response: "You can use top, htop, or sar"
-
     turn_metrics:
-      - "geval:technical_accuracy"  # From registry
-      - "geval:custom_metric"        # Custom
-
+      - geval:custom_monitoring_eval
     turn_metrics_metadata:
-      geval:custom_metric:
+      geval:custom_monitoring_eval:
         criteria: |
           Evaluate if the response mentions multiple monitoring
           tools and explains their differences.
@@ -205,7 +147,27 @@ turns:
         threshold: 0.7
 ```
 
+### Panel of Judges
+
+Use multiple LLM judges for more robust evaluation:
+
+```yaml
+# config/system.yaml
+panel:
+  enabled: true
+  apply_to:
+    - geval
+  judges:
+    - provider: vertex
+      model: gemini-2.0-flash
+      temperature: 0.0
+    - provider: openai
+      model: gpt-4o-mini
+      temperature: 0.0
+```
+
 ## Output
+*WIP, still working through ways to integrate panel metrics into the evaluation outputs. Currently, CSV and JSON are supported.*
 
 Evaluation results are saved to `./eval_output` (configurable) with:
 
@@ -221,25 +183,79 @@ Evaluation results are saved to `./eval_output` (configurable) with:
 Key sections in `config/system.yaml`:
 
 ```yaml
-# LLM Configuration
+# Core evaluation parameters
+core:
+  max_threads: 50
+
+# LLM as a judge configuration
 llm:
   provider: vertex
   model: gemini-2.0-flash
   temperature: 0.0
-  max_tokens: 500
+  max_tokens: 512
   cache_enabled: true
+  cache_dir: ".caches/llm_cache"
 
-# GEval Configuration
-geval:
+# Embedding configuration
+embedding:
+  provider: "openai"
+  model: "text-embedding-3-small"
+  cache_enabled: true
+  cache_dir: ".caches/embedding_cache"
+
+# Panel of judges
+panel:
   enabled: true
-  registry_path: "config/geval_metrics.yaml"
-  default_turn_metrics: []
-  default_conversation_metrics: []
+  apply_to:
+    - geval
+  judges:
+    - provider: vertex
+      model: gemini-2.0-flash
+      temperature: 0.0
+    - provider: openai
+      model: gpt-4o-mini
+      temperature: 0.0
+
+# Lightspeed-stack API Configuration
+api:
+  enabled: false
+  api_base: http://localhost:8080
+  endpoint_type: streaming
+  cache_enabled: true
+  cache_dir: ".caches/api_cache"
+
+# Metrics metadata (define reusable metrics)
+metrics_metadata:
+  turn_level:
+    "geval:technical_accuracy":
+      criteria: "..."
+      evaluation_steps: []
+      threshold: 0.7
+  conversation_level:
+    "geval:conversation_coherence":
+      criteria: "..."
+      threshold: 0.6
 
 # Output Configuration
 output:
   output_dir: "./eval_output"
   enabled_outputs: [csv, json, txt]
+  csv_columns:
+    - conversation_group_id
+    - turn_id
+    - metric_identifier
+    - score
+    - judge_id # Will not populate if "panel" is not enabled
+    - threshold
+    - result
+
+# Visualization
+visualization:
+  enabled_graphs:
+    - pass_rates
+    - score_distribution
+    - conversation_heatmap
+    - status_breakdown
 
 # Logging
 logging:
