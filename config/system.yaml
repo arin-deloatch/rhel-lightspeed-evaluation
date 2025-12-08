@@ -23,8 +23,8 @@ embedding:
   cache_dir: ".caches/embedding_cache"
   cache_enabled: true
 
-panel_of_judges:
-  enabled: false
+panel:
+  enabled: true
   apply_to:
     - geval
   judges:
@@ -32,8 +32,8 @@ panel_of_judges:
       model: gemini-2.0-flash
       temperature: 0.0
 
-    - provider: vertex
-      model: gemini-2.0-flash
+    - provider: openai
+      model: gpt-4o-mini
       temperature: 0.0
 
 # Lightspeed-stack API Configuration

@@ -26,13 +26,13 @@ dev = [
 ]
 
 [project.scripts]
-rls-evaluate = "rhel_lightspeed_evaluation.cli:main"
+rls-evaluate = "rhel_lightspeed_evaluation.extensions.runner.evaluation:main"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
+[tool.hatch.build.targets.wheel]
+packages = ["src/rhel_lightspeed_evaluation"]
 
 [tool.uv.sources]
-lightspeed-evaluation = { git = "https://github.com/arin-deloatch/lightspeed-evaluation", rev = "9a181e5622f901ca96fa555b54883d2903a8f5a2" }
+lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", branch = "main" }
 
 [tool.ruff]
 line-length = 100
