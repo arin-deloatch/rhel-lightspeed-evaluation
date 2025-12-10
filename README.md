@@ -248,6 +248,10 @@ output:
     - judge_id # Will not populate if "panel" is not enabled
     - threshold
     - result
+  # Config sections to include in the summary output file; used for tracking model params/metadata
+  summary_config_sections:
+    - llm
+    - panel_of_judges
 
 # Visualization
 visualization:

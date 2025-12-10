@@ -32,8 +32,8 @@ panel:
       model: gemini-2.0-flash
       temperature: 0.0
 
-    - provider: openai
-      model: gpt-4o-mini
+    - provider: vertex
+      model: gemini-2.0-flash
       temperature: 0.0
 
 # Lightspeed-stack API Configuration
@@ -179,6 +179,10 @@ output:
     - "query"
     - "response"
     - "execution_time"
+  # Config sections to include in the summary output file; used for tracking model params/metadata
+  summary_config_sections:
+    - llm
+    - panel_of_judges
 
 # Visualization settings
 visualization:
