@@ -35,6 +35,10 @@ class OutputConfig(BaseModel):
         default=SUPPORTED_CSV_COLUMNS,
         description="CSV columns to include in detailed results",
     )
+    summary_config_sections: list[str] = Field(
+        default=["llm", "embedding", "api", "panel_of_judges"],
+        description="Configuration sections to include in summary reports",
+    )
 
     @field_validator("csv_columns")
     @classmethod
