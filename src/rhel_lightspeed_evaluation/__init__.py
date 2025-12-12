@@ -3,7 +3,7 @@
 This package provides extensions to the lightspeed-evaluation framework,
 including:
 - Panel of Judges for multi-model evaluation
-- Config extensions to support panel of judges.
+- Config extensions to support panel of judges
 
 Main components:
 - EvaluationPipelineExt: Extended evaluation pipeline with custom processing
@@ -11,9 +11,6 @@ Main components:
 - Extended models: SystemConfigExt, EvaluationResultExt
 - Extended processors: ConversationProcessorExt, MetricsEvaluatorExt
 - Extended output handlers: OutputHandlerExt
-
-This package also re-exports key components from the upstream lightspeed_evaluation
-framework for convenience.
 """
 
 from typing import TYPE_CHECKING
@@ -43,37 +40,13 @@ if TYPE_CHECKING:
     from rhel_lightspeed_evaluation.extensions.core.output import OutputHandlerExt
     from rhel_lightspeed_evaluation.extensions.core.system import ConfigLoaderExt
 
-    # Re-export key upstream components for convenience
-    from lightspeed_evaluation.core.api import APIClient
-    from lightspeed_evaluation.core.llm import LLMManager
-    from lightspeed_evaluation.core.models import (
-        APIConfig,
-        EvaluationData,
-        EvaluationResult,
-        LLMConfig,
-        LoggingConfig,
-        OutputConfig,
-        TurnData,
-        VisualizationConfig,
-    )
-    from lightspeed_evaluation.core.output import GraphGenerator, OutputHandler
-    from lightspeed_evaluation.core.script import ScriptExecutionManager
-    from lightspeed_evaluation.core.system import (
-        ConfigLoader,
-        DataValidator,
-        SystemConfig,
-    )
-    from lightspeed_evaluation.core.system.exceptions import (
-        APIError,
-        DataValidationError,
-        EvaluationError,
-        ScriptExecutionError,
-    )
-    from lightspeed_evaluation.pipeline.evaluation import EvaluationPipeline
-
 __version__ = "0.1.0"
 
 __author__ = "Arin DeLoatch"
+
+# Module path constants to avoid duplication
+_RHEL_CORE_METRICS = "rhel_lightspeed_evaluation.extensions.core.metrics"
+_RHEL_CORE_MODELS = "rhel_lightspeed_evaluation.extensions.core.models"
 
 _LAZY_IMPORTS = {
     # Extended pipeline
@@ -95,25 +68,25 @@ _LAZY_IMPORTS = {
         "ConfigLoaderExt",
     ),
     "SystemConfigExt": (
-        "rhel_lightspeed_evaluation.extensions.core.models",
+        _RHEL_CORE_MODELS,
         "SystemConfigExt",
     ),
     # Extended models
     "EvaluationResultExt": (
-        "rhel_lightspeed_evaluation.extensions.core.models",
+        _RHEL_CORE_MODELS,
         "EvaluationResultExt",
     ),
     # Extended metrics
     "DeepEvalMetricsExt": (
-        "rhel_lightspeed_evaluation.extensions.core.metrics",
+        _RHEL_CORE_METRICS,
         "DeepEvalMetricsExt",
     ),
     "CustomMetricsExt": (
-        "rhel_lightspeed_evaluation.extensions.core.metrics",
+        _RHEL_CORE_METRICS,
         "CustomMetricsExt",
     ),
     "GEvalHandlerExt": (
-        "rhel_lightspeed_evaluation.extensions.core.metrics",
+        _RHEL_CORE_METRICS,
         "GEvalHandlerExt",
     ),
     # Extended LLM
@@ -126,44 +99,26 @@ _LAZY_IMPORTS = {
         "rhel_lightspeed_evaluation.extensions.core.output",
         "OutputHandlerExt",
     ),
-    # Re-export upstream components
-    "EvaluationPipeline": (
-        "lightspeed_evaluation.pipeline.evaluation",
-        "EvaluationPipeline",
-    ),
-    "ConfigLoader": ("lightspeed_evaluation.core.system", "ConfigLoader"),
-    "SystemConfig": ("lightspeed_evaluation.core.system", "SystemConfig"),
-    "DataValidator": ("lightspeed_evaluation.core.system", "DataValidator"),
-    "LLMConfig": ("lightspeed_evaluation.core.models", "LLMConfig"),
-    "APIConfig": ("lightspeed_evaluation.core.models", "APIConfig"),
-    "OutputConfig": ("lightspeed_evaluation.core.models", "OutputConfig"),
-    "LoggingConfig": ("lightspeed_evaluation.core.models", "LoggingConfig"),
-    "VisualizationConfig": ("lightspeed_evaluation.core.models", "VisualizationConfig"),
-    "EvaluationData": ("lightspeed_evaluation.core.models", "EvaluationData"),
-    "TurnData": ("lightspeed_evaluation.core.models", "TurnData"),
-    "EvaluationResult": ("lightspeed_evaluation.core.models", "EvaluationResult"),
-    "LLMManager": ("lightspeed_evaluation.core.llm", "LLMManager"),
-    "APIClient": ("lightspeed_evaluation.core.api", "APIClient"),
-    "OutputHandler": ("lightspeed_evaluation.core.output", "OutputHandler"),
-    "GraphGenerator": ("lightspeed_evaluation.core.output", "GraphGenerator"),
-    "ScriptExecutionManager": (
-        "lightspeed_evaluation.core.script",
-        "ScriptExecutionManager",
-    ),
-    "ScriptExecutionError": (
-        "lightspeed_evaluation.core.system.exceptions",
-        "ScriptExecutionError",
-    ),
-    "APIError": ("lightspeed_evaluation.core.system.exceptions", "APIError"),
-    "DataValidationError": (
-        "lightspeed_evaluation.core.system.exceptions",
-        "DataValidationError",
-    ),
-    "EvaluationError": (
-        "lightspeed_evaluation.core.system.exceptions",
-        "EvaluationError",
-    ),
 }
 
 __getattr__ = create_lazy_getattr(_LAZY_IMPORTS, __name__)
-__all__ = list(_LAZY_IMPORTS.keys())
+
+__all__ = [
+    # Extended pipeline
+    "EvaluationPipelineExt",
+    "ConversationProcessorExt",
+    "MetricsEvaluatorExt",
+    # Extended system config
+    "ConfigLoaderExt",
+    "SystemConfigExt",
+    # Extended models
+    "EvaluationResultExt",
+    # Extended metrics
+    "DeepEvalMetricsExt",
+    "CustomMetricsExt",
+    "GEvalHandlerExt",
+    # Extended LLM
+    "DeepEvalLLMManagerExt",
+    # Extended output handling
+    "OutputHandlerExt",
+]

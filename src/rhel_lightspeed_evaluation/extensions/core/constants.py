@@ -15,7 +15,3 @@ SUPPORTED_CSV_COLUMNS = [
     "query",
     "response",
 ]
-
-if __name__ == '__main__':
-    print(constants.DEFAULT_API_BASE)
-    print(SUPPORTED_CSV_COLUMNS)
