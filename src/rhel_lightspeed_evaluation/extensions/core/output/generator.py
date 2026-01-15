@@ -165,6 +165,8 @@ class OutputHandlerExt(OutputHandler):
         base_filename: str,
         basic_stats: dict[str, Any],
         detailed_stats: dict[str, Any],
+        api_tokens: dict[str, Any,] | None = None,
+        streaming_stats: dict[str, Any] = None,
     ) -> Path:
         """Generate JSON summary report."""
         json_file = self.output_dir / f"{base_filename}_summary.json"
@@ -203,6 +205,8 @@ class OutputHandlerExt(OutputHandler):
         base_filename: str,
         basic_stats: dict[str, Any],
         detailed_stats: dict[str, Any],
+        api_tokens: dict[str, Any,] | None = None,
+        streaming_stats: dict[str, Any] = None,
     ) -> Path:
         """Generate human-readable text summary."""
         txt_file = self.output_dir / f"{base_filename}_summary.txt"
