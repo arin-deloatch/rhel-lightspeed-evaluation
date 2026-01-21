@@ -113,7 +113,7 @@ class EvaluationPipelineExt(EvaluationPipeline):
 
     def validate_data(self, evaluation_data: list[EvaluationData]) -> bool:
         """Validate evaluation data using data validator."""
-        return self.data_validator.validate_evaluation_data(evaluation_data)
+        return self.data_validator._validate_evaluation_data(evaluation_data)
 
     def run_evaluation(
         self,
