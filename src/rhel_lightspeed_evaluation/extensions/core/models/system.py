@@ -14,6 +14,7 @@ from rhel_lightspeed_evaluation.extensions.core.constants import SUPPORTED_CSV_C
 
 
 from lightspeed_evaluation.core.models.system import SystemConfig
+from lightspeed_evaluation.core.models import APIConfig
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class OutputConfig(BaseModel):
@@ -183,7 +184,51 @@ class PanelOfJudgesConfig(BaseModel):
                     seen[judge.judge_id] = 1
 
         return v
+
+
+class APIConfigExt(APIConfig):
+    """Extended API configuration that supports additional endpoint types.
+    
+    This extends the base APIConfig to support "chat/completions" endpoint type
+    in addition to the default "streaming" and "query" endpoints.
+    """
+    
+    # Override endpoint_type field to allow specific endpoint types
+    endpoint_type: str = Field(
+        ...,
+        description="API endpoint type (supports 'query', 'streaming', or 'chat/completions')",
+    )
+    
+    @field_validator("endpoint_type", mode="before")
+    @classmethod
+    def validate_endpoint_type(cls, v: str) -> str:
+        """Validate endpoint_type is one of the supported values.
+        
+        Supported endpoint types:
+        - "query": Standard query endpoint
+        - "streaming": Streaming endpoint
+        - "chat/completions": Chat completions endpoint (OpenAI-compatible)
+        """
+        if not isinstance(v, str):
+            raise ValueError("endpoint_type must be a string")
+        
+        v = v.strip()
+        allowed_endpoints = {"query", "streaming", "chat/completions"}
+        
+        if v not in allowed_endpoints:
+            raise ValueError(
+                f"Unsupported endpoint_type: '{v}'. "
+                f"Supported types: {sorted(allowed_endpoints)}"
+            )
+        
+        return v
+
+
 class SystemConfigExt(SystemConfig):
+    api: APIConfigExt = Field(
+        default_factory=lambda: APIConfigExt(**{}),
+        description="API configuration (extended to support custom endpoint types)",
+    )
     output: OutputConfig = Field(
         default_factory=OutputConfig,
         description="Output configuration (extended with csv_columns)",
