@@ -1,9 +1,8 @@
-from typing import Any, Optional
-
-from pydantic import BaseModel, ConfigDict, Field
-
+from typing import Any
 
 from lightspeed_evaluation.core.models import AttachmentData
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class APIRequestExt(BaseModel):
     """API request model for dynamic data generation."""
@@ -11,19 +10,19 @@ class APIRequestExt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     query: str = Field(..., min_length=1, description="User query")
-    messages: Optional[list[dict[str, str]]] = Field(
+    messages: list[dict[str, str]] | None = Field(
         default=None, description="User query formatted as messages"
     )
-    provider: Optional[str] = Field(default=None, description="LLM provider")
-    model: Optional[str] = Field(default=None, description="LLM model")
-    no_tools: Optional[bool] = Field(default=None, description="Disable tool usage")
-    conversation_id: Optional[str] = Field(
+    provider: str | None = Field(default=None, description="LLM provider")
+    model: str | None = Field(default=None, description="LLM model")
+    no_tools: bool | None = Field(default=None, description="Disable tool usage")
+    conversation_id: str | None = Field(
         default=None, description="Conversation ID for context"
     )
-    system_prompt: Optional[str] = Field(
+    system_prompt: str | None = Field(
         default=None, description="System prompt override"
     )
-    attachments: Optional[list[AttachmentData]] = Field(
+    attachments: list[AttachmentData] | None = Field(
         default=None, description="File attachments"
     )
 

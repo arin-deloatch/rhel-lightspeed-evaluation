@@ -1,17 +1,14 @@
 """Extended API client that supports chat/completions endpoint."""
 
 import logging
-from typing import Any, Optional
-from diskcache import Cache
-import httpx
 
+import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
-from lightspeed_evaluation.core.models import APIConfig
 from lightspeed_evaluation.core.models import APIConfig, APIRequest, APIResponse
-from rhel_lightspeed_evaluation.extensions.core.models.system import APIConfigExt
 from lightspeed_evaluation.core.system.exceptions import APIError
 
 from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt
+from rhel_lightspeed_evaluation.extensions.core.models.system import APIConfigExt
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +36,8 @@ class APIClientExt(BaseAPIClient):
     def query(
         self,
         query: str,
-        conversation_id: Optional[str] = None,
-        attachments: Optional[list[str]] = None,) -> APIResponse:
+        conversation_id: str | None = None,
+        attachments: list[str] | None = None,) -> APIResponse:
         """Query the API endpoint.
         
         For 'chat/completions' endpoint, constructs the URL as:
@@ -61,12 +58,12 @@ class APIClientExt(BaseAPIClient):
         else:
             # For "streaming" or "query" endpoints, delegate to base implementation
             return super().query(query, conversation_id, attachments)
-    
+
     def query(
         self,
         query: str,
-        conversation_id: Optional[str] = None,
-        attachments: Optional[list[str]] = None,
+        conversation_id: str | None = None,
+        attachments: list[str] | None = None,
     ) -> APIResponse:
         """Query the API using the configured endpoint type.
 
@@ -99,12 +96,12 @@ class APIClientExt(BaseAPIClient):
             self._add_response_to_cache(api_request, response)
 
         return response
-    
+
     def _prepare_request(
         self,
         query: str,
-        conversation_id: Optional[str] = None,
-        attachments: Optional[list[str]] = None,
+        conversation_id: str | None = None,
+        attachments: list[str] | None = None,
     ) -> APIRequestExt:
         """Prepare API request with common parameters."""
         return APIRequestExt.create(
