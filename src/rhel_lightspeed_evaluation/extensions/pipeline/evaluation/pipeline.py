@@ -13,6 +13,7 @@ from rhel_lightspeed_evaluation.extensions.core.models import SystemConfigExt, E
 from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import MetricsEvaluatorExt,ConversationProcessorExt
 
 from lightspeed_evaluation.core.api import APIClient
+from rhel_lightspeed_evaluation.extensions.core.api import APIClientExt
 from lightspeed_evaluation.core.metrics.manager import MetricManager
 from lightspeed_evaluation.core.models import EvaluationData
 from lightspeed_evaluation.core.output.data_persistence import save_evaluation_data
@@ -106,7 +107,9 @@ class EvaluationPipelineExt(EvaluationPipeline):
         api_config = config.api
         logger.info("Setting up API client: %s", api_config.api_base)
 
-        client = APIClient(config.api)
+        # Use APIClientExt for extended endpoint type support (e.g., chat/completions)
+        # It handles all endpoint types including the base ones
+        client = APIClientExt(config.api)
 
         logger.info("API client initialized for %s endpoint", api_config.endpoint_type)
         return client
