@@ -1,5 +1,5 @@
 """DeepEval LLM Manager - DeepEval-specific LLM wrapper."""
-
+import os
 from typing import Any, Optional
 
 from deepeval.models import LiteLLMModel
@@ -22,10 +22,27 @@ class DeepEvalLLMManagerExt(DeepEvalLLMManager):
         panel_config: Optional panel of judges configuration
     """
 
-    def __init__(self, model_name: str, 
+    def __init__(self, model_name: str,
                  llm_params: dict[str, Any],
                  panel_config: Optional[PanelOfJudgesConfig]):
+
         super().__init__(model_name, llm_params)
+
+        # Re-create the primary llm_model with the correct API key
+        # The parent class creates it without passing api_key, which causes it to use
+        # the wrong key (e.g., OPENAI_API_KEY instead of WATSONX_API_KEY)
+        provider = model_name.split('/')[0] if '/' in model_name else None
+        if provider:
+            api_key = self._get_api_key_for_provider(provider)
+            if api_key:
+                self.llm_model = LiteLLMModel(
+                    model=model_name,
+                    api_key=api_key,
+                    temperature=llm_params.get("temperature", 0.0),
+                    max_tokens=llm_params.get("max_tokens"),
+                    timeout=llm_params.get("timeout"),
+                    num_retries=llm_params.get("num_retries", 3),
+                )
 
         # Initialize panel judges if enabled
         self.panel_config = panel_config
@@ -92,17 +109,52 @@ class DeepEvalLLMManagerExt(DeepEvalLLMManager):
                 "num_retries", 3
             )
 
+            # Get provider-specific API key
+            api_key = self._get_api_key_for_provider(judge_config.provider)
+
             # Create DeepEval LLM model for this judge
-            judge_llm = LiteLLMModel(
-                model=judge_model_name,
-                temperature=judge_config.temperature,
-                max_tokens=max_tokens,
-                timeout=timeout,
-                num_retries=num_retries,
-            )
+            # Some providers (vertex) use service accounts and don't need api_key parameter
+            llm_kwargs = {
+                "model": judge_model_name,
+                "temperature": judge_config.temperature,
+                "max_tokens": max_tokens,
+                "timeout": timeout,
+                "num_retries": num_retries,
+            }
+
+            # Only add api_key if the provider uses one (vertex uses service account)
+            if api_key is not None:
+                llm_kwargs["api_key"] = api_key
+
+            judge_llm = LiteLLMModel(**llm_kwargs)
+            print(f"🔧 Judge LLM created: {judge_llm.model, judge_config.provider}")
 
             self.judge_models.append((judge_config.judge_id, judge_llm))
             print(f"  → Judge {judge_config.judge_id}: {judge_model_name}")
+
+    def _get_api_key_for_provider(self, provider: str) -> Optional[str]:
+        """Get the appropriate API key for the given provider.
+
+        Args:
+            provider: The LLM provider name
+
+        Returns:
+            API key string for the provider, or None
+        """
+        provider_key_map = {
+            "watsonx": "WATSONX_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "azure": "AZURE_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+            "vertex": None,  # Vertex uses service account credentials (GOOGLE_APPLICATION_CREDENTIALS)
+            "hosted_vllm": "HOSTED_VLLM_API_KEY",
+        }
+
+        env_var = provider_key_map.get(provider.lower())
+        if env_var:
+            return os.environ.get(env_var)
+        return None
 
     def _create_judge_llm_config(
         self, judge_config: JudgeConfig, default_params: dict[str, Any]
