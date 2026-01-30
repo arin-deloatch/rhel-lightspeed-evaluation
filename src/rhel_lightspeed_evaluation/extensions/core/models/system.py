@@ -198,6 +198,7 @@ class APIConfigExt(APIConfig):
         ...,
         description="API endpoint type (supports 'query', 'streaming', or 'chat/completions')",
     )
+    rag: bool = Field(default=False, description="Whether RAG is enabled for the API")
     
     @field_validator("endpoint_type", mode="before")
     @classmethod
