@@ -64,7 +64,8 @@ class APIClient:
             # Use API_KEY environment variable for authentication
             api_key = os.getenv("API_KEY")
             if api_key and self.client:
-                self.client.headers.update({"Authorization": f"Bearer {api_key}"})
+                self.client.headers.update(
+                    {"Authorization": f"Bearer {api_key}"})
 
         except Exception as e:
             raise APIError(f"Failed to setup API client: {e}") from e
@@ -88,11 +89,13 @@ class APIClient:
         if not self.client:
             raise APIError("API client not initialized")
 
-        api_request = self._prepare_request(query, conversation_id, attachments)
+        api_request = self._prepare_request(
+            query, conversation_id, attachments)
         if self.config.cache_enabled:
             cached_response = self._get_cached_response(api_request)
             if cached_response is not None:
-                logger.debug("Returning cached response for query: '%s'", query)
+                logger.debug(
+                    "Returning cached response for query: '%s'", query)
                 return cached_response
 
         if self.endpoint_type == "streaming":
@@ -117,6 +120,7 @@ class APIClient:
             provider=self.config.provider,
             model=self.config.model,
             no_tools=self.config.no_tools,
+            no_rag=self.config.no_rag,
             conversation_id=conversation_id,
             system_prompt=self.config.system_prompt,
             attachments=attachments,
@@ -205,7 +209,8 @@ class APIClient:
         if response.status_code != 200:
             error_msg = self._extract_error_message(response)
             raise httpx.HTTPStatusError(
-                message=f"Agent API error: {response.status_code} - {error_msg}",
+                message=f"Agent API error: {
+                    response.status_code} - {error_msg}",
                 request=response.request,
                 response=response,
             )
@@ -233,19 +238,23 @@ class APIClient:
                 else "Unknown error"
             )
 
-    def _handle_timeout_error(self, endpoint_type: str, timeout: int) -> APIError:
+    def _handle_timeout_error(self, endpoint_type: str,
+                              timeout: int) -> APIError:
         """Create appropriate timeout error message."""
-        return APIError(f"API {endpoint_type} query timeout after {timeout} seconds")
+        return APIError(
+            f"API {endpoint_type} query timeout after {timeout} seconds")
 
     def _handle_http_error(self, e: httpx.HTTPStatusError) -> APIError:
         """Handle HTTP status errors."""
-        return APIError(f"API error: {e.response.status_code} - {e.response.text}")
+        return APIError(
+            f"API error: {e.response.status_code} - {e.response.text}")
 
     def _handle_validation_error(self, e: ValueError) -> APIError:
         """Handle validation errors."""
         return APIError(f"Response validation error: {e}")
 
-    def _handle_unexpected_error(self, e: Exception, operation: str) -> APIError:
+    def _handle_unexpected_error(
+            self, e: Exception, operation: str) -> APIError:
         """Handle unexpected errors."""
         return APIError(f"Unexpected error in {operation}: {e}")
 

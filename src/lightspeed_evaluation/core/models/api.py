@@ -24,7 +24,9 @@ class AttachmentData(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    attachment_type: str = Field(default="configuration", description="Attachment type")
+    attachment_type: str = Field(
+        default="configuration",
+        description="Attachment type")
     content: str = Field(..., description="Attachment content or reference")
     content_type: str = Field(default="text/plain", description="Content type")
 
@@ -37,7 +39,10 @@ class APIRequest(BaseModel):
     query: str = Field(..., min_length=1, description="User query")
     provider: Optional[str] = Field(default=None, description="LLM provider")
     model: Optional[str] = Field(default=None, description="LLM model")
-    no_tools: Optional[bool] = Field(default=None, description="Disable tool usage")
+    no_tools: Optional[bool] = Field(
+        default=None, description="Disable tool usage")
+    no_rag: Optional[bool] = Field(default=None,
+                                   description="Disable/Enable RAG/retrieval")
     conversation_id: Optional[str] = Field(
         default=None, description="Conversation ID for context"
     )
@@ -59,20 +64,22 @@ class APIRequest(BaseModel):
         provider = kwargs.get("provider")
         model = kwargs.get("model")
         no_tools = kwargs.get("no_tools")
+        no_rag = kwargs.get("no_rag")
         conversation_id = kwargs.get("conversation_id")
         system_prompt = kwargs.get("system_prompt")
         attachments = kwargs.get("attachments")
         attachment_data = None
         if attachments:
             attachment_data = [
-                AttachmentData(content=attachment) for attachment in attachments
-            ]
+                AttachmentData(
+                    content=attachment) for attachment in attachments]
 
         return cls(
             query=query,
             provider=provider,
             model=model,
             no_tools=no_tools,
+            no_rag=no_rag,
             conversation_id=conversation_id,
             system_prompt=system_prompt,
             attachments=attachment_data,
@@ -91,9 +98,12 @@ class APIResponse(StreamingMetricsMixin):
     tool_calls: list[list[dict[str, Any]]] = Field(
         default_factory=list, description="Tool call sequences"
     )
-    contexts: list[str] = Field(default_factory=list, description="Context from API")
+    contexts: list[str] = Field(
+        default_factory=list,
+        description="Context from API")
     input_tokens: int = Field(default=0, ge=0, description="Input tokens used")
-    output_tokens: int = Field(default=0, ge=0, description="Output tokens used")
+    output_tokens: int = Field(
+        default=0, ge=0, description="Output tokens used")
 
     @classmethod
     def from_raw_response(cls, raw_data: dict[str, Any]) -> "APIResponse":
@@ -116,7 +126,8 @@ class APIResponse(StreamingMetricsMixin):
         input_tokens = raw_data.get("input_tokens", 0)
         output_tokens = raw_data.get("output_tokens", 0)
 
-        # Extract streaming performance metrics (only available for streaming endpoint)
+        # Extract streaming performance metrics (only available for streaming
+        # endpoint)
         time_to_first_token = raw_data.get("time_to_first_token")
         streaming_duration = raw_data.get("streaming_duration")
         tokens_per_second = raw_data.get("tokens_per_second")

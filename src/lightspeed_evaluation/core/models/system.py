@@ -188,6 +188,11 @@ class APIConfig(BaseModel):
         default=True, description="Is caching of lightspeed-stack queries enabled?"
     )
 
+    no_rag: Optional[bool] = Field(
+        default=True,
+        description="Disable retrieval/RAG in API calls (for baseline experiments)"
+    )
+
     @field_validator("endpoint_type")
     @classmethod
     def validate_endpoint_type(cls, v: str) -> str:

@@ -145,8 +145,53 @@ metrics_metadata:
             assert loader.logger is not None
             assert config.llm.provider == "openai"
             assert config.llm.model == "gpt-4o-mini"
+            assert config.api.no_rag is True
         finally:
             Path(temp_path).unlink()
+
+
+    def test_load_system_config_no_rag(self) -> None:
+        """Test loading minimal no_rag valid config."""
+        yaml_content = """
+  llm:
+    provider: openai
+    model: gpt-4o-mini
+
+  core:
+    max_threads: 20
+
+  api:
+    enabled: true
+    api_base: "https://api.example.com"
+    no_rag: true  # Disable RAG for baseline experiment
+
+  output:
+    output_dir: ./no_rag_output
+    csv_columns:
+      - conversation_group_id
+      - turn_id
+      - contexts  # Changed from 'context_warning' to 'contexts' (valid column)
+
+  metrics_metadata:
+    turn_level: {}
+    conversation_level: {}
+ 
+  """
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            temp_path = f.name
+
+        try:           
+            loader = ConfigLoader()
+            config = loader.load_system_config(temp_path)
+            print("something")
+            assert config.api.enabled is True
+            assert config.api.no_rag is  True
+            assert loader.logger is not None
+        finally:
+            Path(temp_path).unlink()
+
 
     def test_load_system_config_with_all_sections(self) -> None:
         """Test loading config with all sections."""
