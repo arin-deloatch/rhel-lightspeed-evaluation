@@ -37,32 +37,6 @@ class APIClientExt(BaseAPIClient):
         self,
         query: str,
         conversation_id: str | None = None,
-        attachments: list[str] | None = None,) -> APIResponse:
-        """Query the API endpoint.
-        
-        For 'chat/completions' endpoint, constructs the URL as:
-        {api_base}/{version}/chat/completions
-        
-        For other endpoint types ('query' or 'streaming'), delegates to
-        the base class implementation.
-        
-        Args:
-            *args: Positional arguments passed to the query method
-            **kwargs: Keyword arguments passed to the query method
-            
-        Returns:
-            The response from the API endpoint
-        """
-        if self._is_chat_completions:
-            return self._query_chat_completions(query, conversation_id, attachments)
-        else:
-            # For "streaming" or "query" endpoints, delegate to base implementation
-            return super().query(query, conversation_id, attachments)
-
-    def query(
-        self,
-        query: str,
-        conversation_id: str | None = None,
         attachments: list[str] | None = None,
     ) -> APIResponse:
         """Query the API using the configured endpoint type.
