@@ -8,6 +8,7 @@ to the RHEL Lightspeed evaluation extensions.
 from typing import Any, Optional
 
 from rhel_lightspeed_evaluation.extensions.core.models.system import (
+    APIConfigExt,
     PanelOfJudgesConfig, 
     SystemConfigExt,
     # Needed for judge_id 
@@ -16,7 +17,6 @@ from rhel_lightspeed_evaluation.extensions.core.models.system import (
 
 from lightspeed_evaluation.core.system import ConfigLoader
 from lightspeed_evaluation.core.models import (
-    APIConfig,
     CoreConfig,
     EmbeddingConfig,
     LLMConfig,
@@ -52,7 +52,7 @@ class ConfigLoaderExt(ConfigLoader):
             core=CoreConfig(**config_data.get("core", {})),
             llm=LLMConfig(**config_data.get("llm", {})),
             embedding=EmbeddingConfig(**config_data.get("embedding") or {}),
-            api=APIConfig(**config_data.get("api", {})),
+            api=APIConfigExt(**config_data.get("api", {})),
             output=OutputConfig(**config_data.get("output", {})),
             logging=LoggingConfig(**config_data.get("logging", {})),
             visualization=VisualizationConfig(**config_data.get("visualization", {})),
