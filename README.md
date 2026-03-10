@@ -36,6 +36,7 @@ make install-dev
    # For Vertex AI
    export GOOGLE_CLOUD_PROJECT="your-cloud-project"
    export GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+   export GOOGLE_API_KEY=<insert GCP project API individual key>
 
    # For Watsonx
    export WATSONX_API_KEY="your-api-key"

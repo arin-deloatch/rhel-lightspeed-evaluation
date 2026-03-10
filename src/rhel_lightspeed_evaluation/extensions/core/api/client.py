@@ -4,10 +4,10 @@ import logging
 
 import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
-from lightspeed_evaluation.core.models import APIConfig, APIRequest, APIResponse
+from lightspeed_evaluation.core.models import APIConfig, APIRequest
 from lightspeed_evaluation.core.system.exceptions import APIError
 
-from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt
+from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt, APIResponseExt
 from rhel_lightspeed_evaluation.extensions.core.models.system import APIConfigExt
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class APIClientExt(BaseAPIClient):
         query: str,
         conversation_id: str | None = None,
         attachments: list[str] | None = None,
-    ) -> APIResponse:
+    ) -> APIResponseExt:
         """Query the API using the configured endpoint type.
 
         Args:
@@ -89,13 +89,13 @@ class APIClientExt(BaseAPIClient):
             attachments=attachments,
         )
 
-    def _chat_completions_query(self, api_request: APIRequest) -> APIResponse:
+    def _chat_completions_query(self, api_request: APIRequest) -> APIResponseExt:
         """Query the API using chat/completions endpoint."""
         if not self.client:
             raise APIError("HTTP client not initialized")
         try:
             response = self.client.post(
-                f"/{self.version}/chat/completions",
+                f"/{self.config.version}/chat/completions",
                 json=api_request.model_dump(exclude_none=True),
             )
             response.raise_for_status()
@@ -127,7 +127,7 @@ class APIClientExt(BaseAPIClient):
 
             response_data["response"] = response_data["content"]
             response_data["conversation_id"] = response.json()["id"]
-            return APIResponse.from_raw_response(response_data)
+            return APIResponseExt.from_raw_response(response_data)
 
         except httpx.TimeoutException as e:
             raise self._handle_timeout_error("standard", self.timeout) from e

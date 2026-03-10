@@ -1,7 +1,24 @@
 from typing import Any
 
-from lightspeed_evaluation.core.models import AttachmentData
+from lightspeed_evaluation.core.models import APIResponse, AttachmentData
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class APIResponseExt(APIResponse):
+    """Extended API response that tolerates null tool_calls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    tool_calls: list[list[dict[str, Any]]] | None = Field(
+        default_factory=list, description="Tool call sequences"
+    )
+
+    @classmethod
+    def from_raw_response(cls, raw_data: dict[str, Any]) -> "APIResponseExt":
+        """Create APIResponseExt from raw API response data, normalizing null tool_calls."""
+        if raw_data.get("tool_calls") is None:
+            raw_data["tool_calls"] = []
+        return super().from_raw_response(raw_data)
 
 
 class APIRequestExt(BaseModel):

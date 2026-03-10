@@ -198,6 +198,7 @@ class APIConfigExt(APIConfig):
         ...,
         description="API endpoint type (supports 'query', 'streaming', or 'chat/completions')",
     )
+    version: str = Field(default="v1", description="API version prefix for endpoint URLs (e.g., v1, v2)")
     rag: bool = Field(default=False, description="Whether RAG is enabled for the API")
     
     @field_validator("endpoint_type", mode="before")
