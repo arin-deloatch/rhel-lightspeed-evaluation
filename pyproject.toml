@@ -33,7 +33,7 @@ rls-evaluate = "rhel_lightspeed_evaluation.extensions.runner.evaluation:main"
 packages = ["src/rhel_lightspeed_evaluation"]
 
 [tool.uv.sources]
-lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", branch = "main" }
+lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "34cbae4d59ab29df5328f898e61ccc8a1be9d8ab" }
 
 [tool.ruff]
 line-length = 100
