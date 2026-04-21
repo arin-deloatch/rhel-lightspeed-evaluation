@@ -1,105 +1,197 @@
 """LightSpeed Evaluation Framework (RHEL Extensions) - Main Evaluation Runner."""
 
 import argparse
+import shutil
 import sys
 import traceback
-from typing import Optional
+from pathlib import Path
+from typing import Any
+
+from lightspeed_evaluation.core.models.system import LLMPoolConfig, SystemConfig
+from lightspeed_evaluation.core.storage import FileBackendConfig, get_file_config
+from lightspeed_evaluation.core.system.exceptions import (
+    ConfigurationError,
+    DataValidationError,
+)
 
 from rhel_lightspeed_evaluation.extensions.core.system import ConfigLoaderExt
 
 
-def run_evaluation(  # pylint: disable=too-many-locals
-    system_config_path: str, evaluation_data_path: str, output_dir: Optional[str] = None
-) -> Optional[dict[str, int]]:
-    """Run the complete evaluation pipeline using EvaluationPipeline.
+def _clear_caches(system_config: SystemConfig) -> None:
+    """Clear all cache directories for warmup mode."""
+    cache_dirs: list[tuple[str, str]] = []
+
+    pool = system_config.llm_pool
+    if isinstance(pool, LLMPoolConfig) and pool.defaults.cache_enabled:
+        cache_dirs.append(("LLM Judge (pool)", pool.defaults.cache_dir))
+    if system_config.llm.cache_enabled:
+        cache_dirs.append(("LLM Judge", system_config.llm.cache_dir))
+    if system_config.api.cache_enabled:
+        cache_dirs.append(("API", system_config.api.cache_dir))
+    if system_config.embedding.cache_enabled:
+        cache_dirs.append(("Embedding", system_config.embedding.cache_dir))
+
+    if not cache_dirs:
+        print("   No caches enabled to clear")
+        return
+
+    for cache_name, cache_dir in cache_dirs:
+        path = Path(cache_dir)
+        resolved_path = path.resolve()
+        if resolved_path in {Path("/"), Path.cwd()}:
+            raise DataValidationError(
+                f"Refusing to delete unsafe cache directory: '{resolved_path}'"
+            )
+        if path.exists():
+            shutil.rmtree(path)
+            print(f"   Cleared {cache_name} cache: {cache_dir}")
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def _print_summary(
+    summary: dict[str, Any],
+    api_tokens: dict[str, int] | None = None,
+) -> None:
+    """Print evaluation summary and token usage."""
+    print(
+        f"Pass: {summary['PASS']}, Fail: {summary['FAIL']}, "
+        f"Error: {summary['ERROR']}, Skipped: {summary['SKIPPED']}"
+    )
+    if summary["ERROR"] > 0:
+        print(f"{summary['ERROR']} evaluations had errors - check detailed report")
+
+    print("\nToken Usage Summary:")
+    print(
+        f"Judge LLM: {summary['total_judge_llm_tokens']:,} tokens "
+        f"(Input: {summary['total_judge_llm_input_tokens']:,}, "
+        f"Output: {summary['total_judge_llm_output_tokens']:,})"
+    )
+    if api_tokens:
+        print(
+            f"API Calls: {api_tokens['total_api_tokens']:,} tokens "
+            f"(Input: {api_tokens['total_api_input_tokens']:,}, "
+            f"Output: {api_tokens['total_api_output_tokens']:,})"
+        )
+        total = summary["total_judge_llm_tokens"] + api_tokens["total_api_tokens"]
+        print(f"Total: {total:,} tokens")
+
+
+def run_evaluation(
+    eval_args: argparse.Namespace,
+) -> dict[str, int] | None:
+    """Run the complete evaluation pipeline.
 
     Args:
-        system_config_path: Path to system.yaml
-        evaluation_data_path: Path to evaluation_data.yaml
-        output_dir: Optional override for output directory
+        eval_args: Parsed command line arguments
 
     Returns:
-        dict: Summary statistics with keys TOTAL, PASS, FAIL, ERROR
+        dict: Summary statistics with keys TOTAL, PASS, FAIL, ERROR, SKIPPED
     """
-    print("🚀 LightSpeed Evaluation Framework")
+    print("LightSpeed Evaluation Framework (RHEL)")
     print("=" * 50)
 
     try:
-        # Step 0: Setup environment from config
-        print("🔧 Loading Configuration & Setting up environment and logging...")
+        print("Loading Configuration & Setting up environment...")
         loader = ConfigLoaderExt()
-        system_config = loader.load_system_config(system_config_path)
+        system_config = loader.load_system_config(eval_args.system_config)
 
+        if eval_args.cache_warmup:
+            print("\nCache warmup mode: Clearing existing caches...")
+            _clear_caches(system_config)
+
+        # Import heavy modules after environment is configured
+        print("\nLoading Heavy Modules...")
         # pylint: disable=import-outside-toplevel
+        # DeepEval's LiteLLMModel otherwise sends OPENAI_API_KEY to WatsonX IAM.
+        from rhel_lightspeed_evaluation.extensions.core.llm.deepeval_patch import (
+            apply_deepeval_watsonx_patch,
+        )
 
-        # Step 1: Import heavy modules once environment & logging is set
-        print("\n📋 Loading Heavy Modules...")
-        from rhel_lightspeed_evaluation.extensions.core.output import OutputHandlerExt
-        from lightspeed_evaluation.core.output.statistics import calculate_basic_stats
+        apply_deepeval_watsonx_patch()
+
+        from lightspeed_evaluation.core.output import OutputHandler
+        from lightspeed_evaluation.core.output.statistics import (
+            calculate_api_token_usage,
+            calculate_basic_stats,
+        )
         from lightspeed_evaluation.core.system import DataValidator
-        from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import EvaluationPipelineExt
+
+        from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import (
+            EvaluationPipelineExt,
+        )
 
         # pylint: enable=import-outside-toplevel
+        print("Configuration loaded & Setup is done!")
 
-        print("✅ Environment setup complete, modules loaded")
-
-        llm_config = system_config.llm
-        output_config = system_config.output
-
-        # Step 2: Load and validate evaluation data
-        data_validator = DataValidator(
+        evaluation_data = DataValidator(
             api_enabled=system_config.api.enabled,
             fail_on_invalid_data=system_config.core.fail_on_invalid_data,
+            system_config=system_config,
+        ).load_evaluation_data(
+            eval_args.eval_data,
+            tags=eval_args.tags,
+            conv_ids=eval_args.conv_ids,
         )
-        evaluation_data = data_validator.load_evaluation_data(evaluation_data_path)
 
-        print(f"✅ System config: {llm_config.provider}/{llm_config.model}")
-        print(f"✅ Evaluation data: {len(evaluation_data)} conversation groups")
+        print(f"System config: {system_config.llm.provider}/{system_config.llm.model}")
 
-        # Step 3: Run evaluation with pre-loaded data
-        print("\n⚙️ Initializing Evaluation Pipeline...")
-        pipeline = EvaluationPipelineExt(loader, output_dir)
+        if len(evaluation_data) == 0:
+            print("\nNo conversation groups matched the filter criteria")
+            return {"TOTAL": 0, "PASS": 0, "FAIL": 0, "ERROR": 0, "SKIPPED": 0}
 
-        print("\n🔄 Running Evaluation...")
+        print("\nInitializing Evaluation Pipeline...")
+        pipeline = EvaluationPipelineExt(loader, eval_args.output_dir)
+        print("\nRunning Evaluation...")
         try:
-            results = pipeline.run_evaluation(evaluation_data, evaluation_data_path)
+            results = pipeline.run_evaluation(evaluation_data)
         finally:
             pipeline.close()
 
-        # Step 4: Generate reports and calculate stats
-        print("\n📊 Generating Reports...")
-        output_handler = OutputHandlerExt(
-            output_dir=output_dir or output_config.output_dir,
-            base_filename=output_config.base_filename,
-            system_config=system_config,
-        )
-
-        # Generate reports based on configuration
-        output_handler.generate_reports(results)  # type: ignore[arg-type]
-
-        print("\n🎉 Evaluation Complete!")
-        print(f"📊 {len(results)} evaluations completed")
-        print(f"📁 Reports generated in: {output_handler.output_dir}")
-
-        # Step 5: Final Summary
-        summary = calculate_basic_stats(results)  # type: ignore[arg-type]
-        print(
-            f"✅ Pass: {summary['PASS']}, ❌ Fail: {summary['FAIL']}, ⚠️ Error: {summary['ERROR']}"
-        )
-        if summary["ERROR"] > 0:
-            print(
-                f"⚠️ {summary['ERROR']} evaluations had errors - check detailed report"
+        file_entries = [c for c in system_config.storage if isinstance(c, FileBackendConfig)]
+        if not file_entries:
+            print("\nGenerating Reports...")
+            file_config = get_file_config(system_config.storage)
+            output_handler = OutputHandler(
+                output_dir=eval_args.output_dir or file_config.output_dir,
+                base_filename=file_config.base_filename,
+                system_config=system_config,
+                file_config=file_config,
             )
+            output_handler.generate_reports(results, evaluation_data)
+
+        print("\nEvaluation Complete!")
+        print(f"{len(results)} evaluations completed")
+        for fc in file_entries:
+            report_dir = Path(eval_args.output_dir or fc.output_dir).resolve()
+            print(f"Reports generated in: {report_dir}")
+        if not file_entries:
+            out_dir = Path(
+                eval_args.output_dir or get_file_config(system_config.storage).output_dir
+            ).resolve()
+            print(f"Reports generated in: {out_dir}")
+
+        summary = calculate_basic_stats(results)
+        api_tokens = (
+            calculate_api_token_usage(evaluation_data) if system_config.api.enabled else None
+        )
+        _print_summary(summary, api_tokens)
 
         return {
             "TOTAL": summary["TOTAL"],
             "PASS": summary["PASS"],
             "FAIL": summary["FAIL"],
             "ERROR": summary["ERROR"],
+            "SKIPPED": summary["SKIPPED"],
         }
 
-    except (FileNotFoundError, ValueError, RuntimeError) as e:
-        print(f"\n❌ Evaluation failed: {e}")
+    except (
+        FileNotFoundError,
+        ValueError,
+        RuntimeError,
+        ConfigurationError,
+        DataValidationError,
+    ) as e:
+        print(f"\nEvaluation failed: {e}")
         traceback.print_exc()
         return None
 
@@ -107,7 +199,7 @@ def run_evaluation(  # pylint: disable=too-many-locals
 def main() -> int:
     """Command line interface."""
     parser = argparse.ArgumentParser(
-        description="LightSpeed Evaluation Framework / Tool",
+        description="LightSpeed Evaluation Framework / Tool (RHEL)",
     )
     parser.add_argument(
         "--system-config",
@@ -120,11 +212,27 @@ def main() -> int:
         help="Path to evaluation data file (default: config/evaluation_data.yaml)",
     )
     parser.add_argument("--output-dir", help="Override output directory (optional)")
+    parser.add_argument(
+        "--tags",
+        nargs="+",
+        default=None,
+        help="Filter by tags (run conversation groups with matching tags)",
+    )
+    parser.add_argument(
+        "--conv-ids",
+        nargs="+",
+        default=None,
+        help="Filter by conversation group IDs (run only specified conversations)",
+    )
+    parser.add_argument(
+        "--cache-warmup",
+        action="store_true",
+        help="Enable cache warmup mode - rebuild caches without reading existing entries",
+    )
 
-    args = parser.parse_args()
+    eval_args = parser.parse_args()
 
-    summary = run_evaluation(args.system_config, args.eval_data, args.output_dir)
-
+    summary = run_evaluation(eval_args)
     return 0 if summary is not None else 1
 
 

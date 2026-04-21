@@ -14,6 +14,7 @@ dependencies = [
     "deepeval>=3.6.9",
     "ibm-watsonx-ai>=1.4.11",
     "lightspeed-evaluation",
+    "ruff>=0.14.11",
     "types-pyyaml>=6.0.12.20250915",
 ]
 
@@ -33,7 +34,7 @@ rls-evaluate = "rhel_lightspeed_evaluation.extensions.runner.evaluation:main"
 packages = ["src/rhel_lightspeed_evaluation"]
 
 [tool.uv.sources]
-lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "34cbae4d59ab29df5328f898e61ccc8a1be9d8ab" }
+lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "5170019ee003e025d434ca4255d5e261d6b692dc" }
 
 [tool.ruff]
 line-length = 100

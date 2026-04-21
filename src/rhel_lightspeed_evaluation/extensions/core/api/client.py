@@ -1,6 +1,7 @@
 """Extended API client that supports chat/completions endpoint."""
 
 import logging
+from typing import Any
 
 import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
@@ -14,21 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class APIClientExt(BaseAPIClient):
-    """Extended API client that supports 'chat/completions' endpoint type.
-    
-    This extends the base APIClient to handle the 'chat/completions' endpoint
-    type in addition to the default 'streaming' and 'query' endpoints.
-    
-    For 'chat/completions', it maps to the base client's 'query' endpoint
-    but constructs the URL as '/chat/completions' instead.
-    """
+    """Extended API client that supports 'chat/completions' endpoint type."""
 
     def __init__(self, config: APIConfig | APIConfigExt):
-        """Initialize the extended API client.
-        
-        Args:
-            api_config: API configuration (APIConfig or APIConfigExt)
-        """
         self._is_chat_completions = config.endpoint_type == "chat/completions"
         config.endpoint_type = "query" if self._is_chat_completions else config.endpoint_type
         super().__init__(config)
@@ -38,21 +27,15 @@ class APIClientExt(BaseAPIClient):
         query: str,
         conversation_id: str | None = None,
         attachments: list[str] | None = None,
+        extra_request_params: dict[str, Any] | None = None,
     ) -> APIResponseExt:
-        """Query the API using the configured endpoint type.
-
-        Args:
-            query: The question/query to ask
-            conversation_id: Optional conversation ID for context
-            attachments: Optional list of attachments
-
-        Returns:
-            APIResponse with Response, Tool calls, Conversation ID
-        """
+        """Query the API using the configured endpoint type."""
         if not self.client:
             raise APIError("API client not initialized")
 
-        api_request = self._prepare_request(query, conversation_id, attachments)
+        api_request = self._prepare_request(
+            query, conversation_id, attachments, extra_request_params
+        )
         if self.config.cache_enabled:
             cached_response = self._get_cached_response(api_request)
             if cached_response is not None:
@@ -61,7 +44,7 @@ class APIClientExt(BaseAPIClient):
 
         if self._is_chat_completions:
             response = self._chat_completions_query(api_request)
-        elif self.endpoint_type == "streaming":
+        elif self.config.endpoint_type == "streaming":
             response = self._streaming_query(api_request)
         else:
             response = self._standard_query(api_request)
@@ -76,8 +59,12 @@ class APIClientExt(BaseAPIClient):
         query: str,
         conversation_id: str | None = None,
         attachments: list[str] | None = None,
+        extra_request_params: dict[str, Any] | None = None,
     ) -> APIRequestExt:
         """Prepare API request with common parameters."""
+        resolved_extra = {**(self.config.extra_request_params or {})}
+        if extra_request_params:
+            resolved_extra.update(extra_request_params)
         return APIRequestExt.create(
             query=query,
             messages=[{"role": "user", "content": query}],
@@ -87,6 +74,7 @@ class APIClientExt(BaseAPIClient):
             conversation_id=conversation_id,
             system_prompt=self.config.system_prompt,
             attachments=attachments,
+            extra_request_params=resolved_extra or None,
         )
 
     def _chat_completions_query(self, api_request: APIRequest) -> APIResponseExt:
@@ -96,7 +84,7 @@ class APIClientExt(BaseAPIClient):
         try:
             response = self.client.post(
                 f"/{self.config.version}/chat/completions",
-                json=api_request.model_dump(exclude_none=True),
+                json=self._serialize_request(api_request),
             )
             response.raise_for_status()
 
@@ -130,7 +118,7 @@ class APIClientExt(BaseAPIClient):
             return APIResponseExt.from_raw_response(response_data)
 
         except httpx.TimeoutException as e:
-            raise self._handle_timeout_error("standard", self.timeout) from e
+            raise self._handle_timeout_error("standard", self.config.timeout) from e
         except httpx.HTTPStatusError as e:
             raise self._handle_http_error(e) from e
         except ValueError as e:

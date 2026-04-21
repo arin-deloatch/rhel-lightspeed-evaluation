@@ -33,14 +33,11 @@ class APIRequestExt(BaseModel):
     provider: str | None = Field(default=None, description="LLM provider")
     model: str | None = Field(default=None, description="LLM model")
     no_tools: bool | None = Field(default=None, description="Disable tool usage")
-    conversation_id: str | None = Field(
-        default=None, description="Conversation ID for context"
-    )
-    system_prompt: str | None = Field(
-        default=None, description="System prompt override"
-    )
-    attachments: list[AttachmentData] | None = Field(
-        default=None, description="File attachments"
+    conversation_id: str | None = Field(default=None, description="Conversation ID for context")
+    system_prompt: str | None = Field(default=None, description="System prompt override")
+    attachments: list[AttachmentData] | None = Field(default=None, description="File attachments")
+    extra_request_params: dict[str, Any] | None = Field(
+        default=None, description="Extra request parameters"
     )
 
     @classmethod
@@ -50,18 +47,16 @@ class APIRequestExt(BaseModel):
         **kwargs: Any,
     ) -> "APIRequestExt":
         """Create API request with optional attachments."""
-        # Extract parameters with defaults
         provider = kwargs.get("provider")
         model = kwargs.get("model")
         no_tools = kwargs.get("no_tools")
         conversation_id = kwargs.get("conversation_id")
         system_prompt = kwargs.get("system_prompt")
         attachments = kwargs.get("attachments")
+        extra_request_params = kwargs.get("extra_request_params")
         attachment_data = None
         if attachments:
-            attachment_data = [
-                AttachmentData(content=attachment) for attachment in attachments
-            ]
+            attachment_data = [AttachmentData(content=attachment) for attachment in attachments]
 
         return cls(
             query=query,
@@ -72,5 +67,5 @@ class APIRequestExt(BaseModel):
             conversation_id=conversation_id,
             system_prompt=system_prompt,
             attachments=attachment_data,
+            extra_request_params=extra_request_params,
         )
-

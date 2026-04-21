@@ -9,24 +9,24 @@ core:
 # Default values merge into each model; parameters supports extra provider keys; null removes an inherited parameter.
 llm_pool:
   defaults:
-    cache_enabled: true
+    cache_enabled: false
     cache_dir: ".caches/llm_cache"
     timeout: 300
     num_retries: 3
     parameters:
       temperature: 0.0
-      max_completion_tokens: 1024
+      max_completion_tokens: 2048
   models:
-    judge_gpt_4o_mini:
+    judge_watsonx_llama:
       # Uses default parameters
-      provider: openai
-      model: gpt-4o-mini
+      provider: watsonx
+      model: meta-llama/llama-3-3-70b-instruct
       # timeout: 360
       # ssl_verify: true
       # ssl_cert_file: null
-    judge_gpt_4_1_mini:
-      provider: openai
-      model: gpt-4.1-mini
+    judge_vertex_gemini_pro:
+      provider: vertex
+      model: gemini-2.5-pro
       parameters:
         # Add, remove or override model specific parameters
         temperature: null             # Removes temperature from default
@@ -36,18 +36,19 @@ llm_pool:
 # Combine their scores. First judge in judges is the fallback when the full panel is not used for a metric.
 judge_panel:
   judges:
-    - judge_gpt_4_1_mini
-    - judge_gpt_4o_mini
+    - judge_watsonx_llama
+    - judge_vertex_gemini_pro
   # Enable Metrics: non-empty list → panel only for listed metrics (others → first judge);
   # omit or null → all metrics use all judges; [] → none use panel (first judge only).
   enabled_metrics:
     - "custom:answer_correctness"
-  aggregation_strategy: max  # Other Strategies: average, majority_vote
+    - "custom:answer_completeness"
+  aggregation_strategy: average  # Other Strategies: average, majority_vote
 
 # Default embedding (for LLM as a judge) configuration:
 embedding:
-  provider: "openai"
-  model: "text-embedding-3-small"
+  provider: "gemini"
+  model: "gemini-embedding-001"
   provider_kwargs: {}
   cache_dir: ".caches/embedding_cache"
   cache_enabled: true
@@ -57,17 +58,17 @@ embedding:
 # But can be easily integrated with other APIs with minimal change.
 api:
   enabled: true                        # Enable API calls instead of using pre-filled data
-  api_base: http://localhost:8080      # Base API URL (without version)
-  version: v1                          # API version (e.g., v1, v2)
-  endpoint_type: streaming             # Use "streaming" or "query" endpoint
+  api_base: http://localhost:8000      # Base API URL (without version)
+  version: v2                          # API version (e.g., v1, v2)
+  endpoint_type: chat/completions             # Use "streaming" or "query" endpoint
   timeout: 300                         # API request timeout in seconds
 
   # Retry configuration for 429 Too Many Requests API errors
   num_retries: 3                       # Number of retry attempts (default 3)
 
   # API input configuration
-  provider: "openai"                   # LLM provider for queries
-  model: "gpt-4o-mini"                 # Model to use for queries
+  provider: "watsonx"                   # LLM provider for queries
+  model: "ibm/granite-3-3-8b-instruct"                 # Model to use for queries
   no_tools: null                       # Whether to bypass tools and MCP servers (optional)
   system_prompt: null                  # System prompt (default None)
   # Extra parameters merged into API request payload (per-turn override in eval.yaml takes priority)
