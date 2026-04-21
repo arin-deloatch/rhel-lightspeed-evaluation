@@ -42,7 +42,7 @@ judge_panel:
   # omit or null → all metrics use all judges; [] → none use panel (first judge only).
   enabled_metrics:
     - "custom:answer_correctness"
-    - "custom:answer_completeness"
+    - "geval:technical_accuracy"
   aggregation_strategy: average  # Other Strategies: average, majority_vote
 
 # Default embedding (for LLM as a judge) configuration:
@@ -58,9 +58,9 @@ embedding:
 # But can be easily integrated with other APIs with minimal change.
 api:
   enabled: true                        # Enable API calls instead of using pre-filled data
-  api_base: http://localhost:8000      # Base API URL (without version)
-  version: v2                          # API version (e.g., v1, v2)
-  endpoint_type: chat/completions             # Use "streaming" or "query" endpoint
+  api_base: http://localhost:8443      # Base API URL (without version)
+  version: v1                          # API version (e.g., v1, v2)
+  endpoint_type: infer             # Use "streaming" or "query" endpoint
   timeout: 300                         # API request timeout in seconds
 
   # Retry configuration for 429 Too Many Requests API errors
@@ -155,39 +155,6 @@ metrics_metadata:
         - "Check for potential security issues, significant inefficiencies, or anti-patterns."
       threshold: 0.7
       description: "General technical accuracy of provided commands, code, or technical information"
-
-  # Conversation-level metrics metadata
-  conversation_level:
-    # DeepEval metrics
-    "deepeval:conversation_completeness":
-      threshold: 0.8
-      description: "How completely the conversation addresses user intentions"
-      default: false
-
-    "deepeval:conversation_relevancy":
-      threshold: 0.7
-      description: "How relevant the conversation is to the topic/context"
-
-    "deepeval:knowledge_retention":
-      threshold: 0.7
-      description: "How well the model retains information from previous turns"
-
-    # GEval conversation-level metrics
-    "geval:conversation_coherence":
-      criteria: |
-        Evaluate whether the conversation maintains context and provides coherent
-        responses across multiple turns. The assistant should reference previous
-        exchanges and build upon earlier context.
-      evaluation_params:
-        - query
-        - response
-      evaluation_steps:
-        - "Check if the assistant remembers information from previous turns"
-        - "Verify responses build logically on previous context"
-        - "Assess whether the conversation flows naturally"
-        - "Check for contradictions with earlier statements"
-      threshold: 0.6
-      description: "Context maintenance and coherence across conversation turns"
 
 
 # Output Configuration (legacy format - auto-converted to file storage backend)

@@ -25,7 +25,7 @@ class APIConfigExt(APIConfig):
             raise ValueError("endpoint_type must be a string")
 
         v = v.strip()
-        allowed_endpoints = {"query", "streaming", "chat/completions"}
+        allowed_endpoints = {"query", "streaming", "chat/completions", "infer"}
 
         if v not in allowed_endpoints:
             raise ValueError(

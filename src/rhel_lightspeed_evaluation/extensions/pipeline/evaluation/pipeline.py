@@ -24,7 +24,7 @@ class EvaluationPipelineExt(EvaluationPipeline):
         api_config = config.api
         logger.info("Setting up API client: %s", api_config.api_base)
 
-        if api_config.endpoint_type == "chat/completions":
+        if api_config.endpoint_type in ("chat/completions", "infer"):
             client = APIClientExt(api_config)
         else:
             client = APIClient(api_config)

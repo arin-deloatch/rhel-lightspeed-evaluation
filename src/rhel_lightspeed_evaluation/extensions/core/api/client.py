@@ -19,7 +19,9 @@ class APIClientExt(BaseAPIClient):
 
     def __init__(self, config: APIConfig | APIConfigExt):
         self._is_chat_completions = config.endpoint_type == "chat/completions"
-        config.endpoint_type = "query" if self._is_chat_completions else config.endpoint_type
+        self._is_infer = config.endpoint_type == "infer"
+        if self._is_chat_completions or self._is_infer:
+            config.endpoint_type = "query"
         super().__init__(config)
 
     def query(
@@ -44,6 +46,8 @@ class APIClientExt(BaseAPIClient):
 
         if self._is_chat_completions:
             response = self._chat_completions_query(api_request)
+        elif self._is_infer:
+            response = self._infer_query(api_request)
         elif self.config.endpoint_type == "streaming":
             response = self._streaming_query(api_request)
         else:
@@ -76,6 +80,48 @@ class APIClientExt(BaseAPIClient):
             attachments=attachments,
             extra_request_params=resolved_extra or None,
         )
+
+    def _infer_query(self, api_request: APIRequest) -> APIResponseExt:
+        """Query the API using the infer endpoint."""
+        if not self.client:
+            raise APIError("HTTP client not initialized")
+        try:
+            response = self.client.post(
+                f"/{self.config.version}/infer",
+                json=self._serialize_request(api_request),
+            )
+            response.raise_for_status()
+
+            response_data = response.json()
+            if "response" not in response_data:
+                raise APIError("API response missing 'response' field")
+
+            if "tool_calls" in response_data and response_data["tool_calls"]:
+                raw_tool_calls = response_data["tool_calls"]
+                formatted_tool_calls = []
+
+                for tool_call in raw_tool_calls:
+                    if isinstance(tool_call, dict):
+                        formatted_tool = {
+                            "tool_name": tool_call.get("tool_name") or tool_call.get("name") or "",
+                            "arguments": tool_call.get("arguments") or tool_call.get("args") or {},
+                        }
+                        formatted_tool_calls.append([formatted_tool])
+
+                response_data["tool_calls"] = formatted_tool_calls
+
+            return APIResponseExt.from_raw_response(response_data)
+
+        except httpx.TimeoutException as e:
+            raise self._handle_timeout_error("infer", self.config.timeout) from e
+        except httpx.HTTPStatusError as e:
+            raise self._handle_http_error(e) from e
+        except ValueError as e:
+            raise self._handle_validation_error(e) from e
+        except APIError:
+            raise
+        except Exception as e:
+            raise self._handle_unexpected_error(e, "infer query") from e
 
     def _chat_completions_query(self, api_request: APIRequest) -> APIResponseExt:
         """Query the API using chat/completions endpoint."""

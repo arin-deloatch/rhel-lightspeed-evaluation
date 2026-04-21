@@ -13,10 +13,9 @@ This module replaces ``DeepEvalLLMManager`` so that WatsonX judges pass the
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import Any
-
-import logging
 
 import litellm
 from deepeval.models import LiteLLMModel
