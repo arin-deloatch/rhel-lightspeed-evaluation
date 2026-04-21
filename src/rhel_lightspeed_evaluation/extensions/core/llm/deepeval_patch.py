@@ -16,9 +16,13 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import logging
+
 import litellm
 from deepeval.models import LiteLLMModel
 from lightspeed_evaluation.core.llm.deepeval import DeepEvalLLMManager as _BaseDeepEvalLLMManager
+
+logger = logging.getLogger(__name__)
 
 
 def _watsonx_api_key_from_env() -> str | None:
@@ -49,7 +53,7 @@ class DeepEvalLLMManager(_BaseDeepEvalLLMManager):
             **self.llm_params.get("parameters", {}),
         )
 
-        print(f"✅ DeepEval LLM Manager: {self.model_name}")
+        logger.info("DeepEval LLM Manager initialized: %s", self.model_name)
 
 
 def apply_deepeval_watsonx_patch() -> None:
