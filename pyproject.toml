@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rhel-lightspeed-evaluation"
-version = "0.1.0"
+version = "0.2.0"
 description = "An evaluation project for RHEL Lightspeed using the LSC Evaluation Framework."
 authors=[]
 readme = "README.md"
@@ -14,6 +14,7 @@ dependencies = [
     "deepeval>=3.6.9",
     "ibm-watsonx-ai>=1.4.11",
     "lightspeed-evaluation",
+    "pydantic>=2.0,<2.12",
     "ruff>=0.14.11",
     "types-pyyaml>=6.0.12.20250915",
 ]

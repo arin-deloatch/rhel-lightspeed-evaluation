@@ -143,7 +143,7 @@ def run_evaluation(
         pipeline = EvaluationPipelineExt(loader, eval_args.output_dir)
         print("\nRunning Evaluation...")
         try:
-            results = pipeline.run_evaluation(evaluation_data)
+            results = pipeline.run_evaluation(evaluation_data, eval_args.eval_data)
         finally:
             pipeline.close()
 

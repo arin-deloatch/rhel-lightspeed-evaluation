@@ -43,6 +43,7 @@ judge_panel:
   enabled_metrics:
     - "custom:answer_correctness"
     - "geval:technical_accuracy"
+    - "ragas:context_relevance"
   aggregation_strategy: average  # Other Strategies: average, majority_vote
 
 # Default embedding (for LLM as a judge) configuration:
@@ -58,7 +59,7 @@ embedding:
 # But can be easily integrated with other APIs with minimal change.
 api:
   enabled: true                        # Enable API calls instead of using pre-filled data
-  api_base: http://localhost:8443      # Base API URL (without version)
+  api_base: http://127.0.0.1:8443/api/lightspeed      # Base API URL (without version)
   version: v1                          # API version (e.g., v1, v2)
   endpoint_type: infer             # Use "streaming" or "query" endpoint
   timeout: 300                         # API request timeout in seconds
@@ -74,7 +75,8 @@ api:
   # Extra parameters merged into API request payload (per-turn override in eval.yaml takes priority)
   # Example: extra_request_params:
   #            mode: troubleshooting
-  extra_request_params: null
+  extra_request_params:
+    include_metadata: true
 
   cache_dir: ".caches/api_cache"  # Directory with lightspeed-stack cache
   cache_enabled: false                  # Is lightspeed-stack cache enabled?
@@ -156,35 +158,52 @@ metrics_metadata:
       threshold: 0.7
       description: "General technical accuracy of provided commands, code, or technical information"
 
+# Storage Configuration
+# Configures how evaluation results are stored (file outputs and optional database)
+storage:
+  # File backend - outputs evaluation results to CSV, JSON, and TXT files
+  - type: "file"
+    output_dir: "./eval_output"
+    base_filename: "evaluation"
+    enabled_outputs:          # Enable specific output types
+      - csv                   # Detailed results CSV
+      - json                  # Summary JSON with statistics
+      - txt                   # Human-readable summary
 
-# Output Configuration (legacy format - auto-converted to file storage backend)
-output:
-  output_dir: "./eval_output"
-  base_filename: "evaluation"
-  enabled_outputs:          # Enable specific output types
-    - csv                   # Detailed results CSV
-    - json                  # Summary JSON with statistics
-    - txt                   # Human-readable summary
-
-  # CSV columns to include
-  csv_columns:
-    - "conversation_group_id"
-    - "turn_id"
-    - "metric_identifier"
-    - "score"
-    - "threshold"
-    - "result"
-    - "reason"
-    - "query"
-    - "response"
-    - "execution_time"
-    - "judge_scores"
-  summary_config_sections:  # Save configs to json report
-    - core
-    - llm_pool
-    - judge_panel
-    - embedding
-    - api
+    # CSV columns to include
+    csv_columns:
+      - "conversation_group_id"
+      - "turn_id"
+      - "metric_identifier"
+      - "metric_metadata"
+      - "result"
+      - "score"
+      - "threshold"
+      - "reason"
+      - "execution_time"
+      - "query"
+      - "response"
+      - "api_input_tokens"
+      - "api_output_tokens"
+      # Streaming performance metrics (only populated when using streaming endpoint)
+      # - "time_to_first_token"    # Time to first token in seconds
+      # - "streaming_duration"      # Total streaming duration in seconds
+      # - "tokens_per_second"       # Output tokens per second throughput
+      - "judge_llm_input_tokens"
+      - "judge_llm_output_tokens"
+      - "judge_scores"
+      - "tool_calls"
+      - "contexts"
+      - "expected_response"
+      # - "expected_intent"
+      # - "expected_keywords"
+      # - "expected_tool_calls"
+    summary_config_sections:  # Save configs to json report
+      - core
+      - llm_pool
+      - judge_panel
+      - embedding
+      - api
 
 # Visualization settings
 visualization:

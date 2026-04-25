@@ -2340,12 +2340,13 @@ wheels = [
 
 [[package]]
 name = "rhel-lightspeed-evaluation"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "deepeval" },
     { name = "ibm-watsonx-ai" },
     { name = "lightspeed-evaluation" },
+    { name = "pydantic" },
     { name = "ruff" },
     { name = "types-pyyaml" },
 ]
@@ -2366,6 +2367,7 @@ requires-dist = [
     { name = "lightspeed-evaluation", git = "https://github.com/lightspeed-core/lightspeed-evaluation?rev=5170019ee003e025d434ca4255d5e261d6b692dc" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.13.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pydantic", specifier = ">=2.0,<2.12" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.14.11" },

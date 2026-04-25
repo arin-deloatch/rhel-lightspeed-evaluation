@@ -11,11 +11,7 @@ from pydantic import Field, field_validator
 class APIConfigExt(APIConfig):
     """Extended API configuration that supports 'chat/completions' endpoint type."""
 
-    endpoint_type: str = Field(
-        default="streaming",
-        description="API endpoint type (supports 'query', 'streaming', or 'chat/completions')",
-    )
-    rag: bool = Field(default=False, description="Whether RAG is enabled for the API")
+    endpoint_type: str = "streaming"
 
     @field_validator("endpoint_type", mode="before")
     @classmethod
