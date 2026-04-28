@@ -2348,6 +2348,7 @@ dependencies = [
     { name = "lightspeed-evaluation" },
     { name = "pydantic" },
     { name = "ruff" },
+    { name = "scipy" },
     { name = "types-pyyaml" },
 ]
 
@@ -2372,6 +2373,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.14.11" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
+    { name = "scipy", specifier = ">=1.14.0,<=1.16.2" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
 ]
 provides-extras = ["dev"]

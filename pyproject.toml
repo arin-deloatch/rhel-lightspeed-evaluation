@@ -16,6 +16,7 @@ dependencies = [
     "lightspeed-evaluation",
     "pydantic>=2.0,<2.12",
     "ruff>=0.14.11",
+    "scipy>=1.14.0,<=1.16.2",
     "types-pyyaml>=6.0.12.20250915",
 ]
 
