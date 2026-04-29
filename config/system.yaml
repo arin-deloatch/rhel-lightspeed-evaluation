@@ -3,17 +3,46 @@
 # Core evaluation parameters
 core:
   max_threads: 50             # Maximum number of threads, set to null for Python default. 50 is OK for bigger datasets
+  fail_on_invalid_data: true  # If False don't fail on invalid conversations (like missing context for some metrics)
+  skip_on_failure: false      # If True, skip remaining turns when a turn evaluation fails (can be overridden per conversation)
 
-# LLM as a judge configuration
-llm:
-  provider: vertex      # LLM Provider (openai, watsonx, gemini, hosted_vllm etc..)
-  model: gemini-2.0-flash        # Model name for the provider
-  temperature: 0.0            # Generation temperature
-  max_tokens: 512             # Maximum tokens in response
-  timeout: 300                # Request timeout in seconds
-  num_retries: 3              # Retry attempts
-  cache_dir: ".caches/llm_cache"      # Directory with LLM cache
-  cache_enabled: true         # Is LLM cache enabled?
+# Default values merge into each model; parameters supports extra provider keys; null removes an inherited parameter.
+llm_pool:
+  defaults:
+    cache_enabled: true
+    cache_dir: ".caches/llm_cache"
+    timeout: 300
+    num_retries: 3
+    parameters:
+      temperature: 0.0
+      max_completion_tokens: 1024
+  models:
+    judge_gpt_4o_mini:
+      # Uses default parameters
+      provider: openai
+      model: gpt-4o-mini
+      # timeout: 360
+      # ssl_verify: true
+      # ssl_cert_file: null
+    judge_gpt_4_1_mini:
+      provider: openai
+      model: gpt-4.1-mini
+      parameters:
+        # Add, remove or override model specific parameters
+        temperature: null             # Removes temperature from default
+        max_completion_tokens: 2048   # Overrides default
+
+# Judge Panel: multiple judges from the pool
+# Combine their scores. First judge in judges is the fallback when the full panel is not used for a metric.
+judge_panel:
+  judges:
+    - judge_gpt_4_1_mini
+    - judge_gpt_4o_mini
+  # Enable Metrics: non-empty list → panel only for listed metrics (others → first judge);
+  # omit or null → all metrics use all judges; [] → none use panel (first judge only).
+  enabled_metrics:
+    - "custom:answer_correctness"
+  aggregation_strategy: max  # Other Strategies: average, majority_vote
 
 # Default embedding (for LLM as a judge) configuration:
 embedding:
@@ -23,38 +52,41 @@ embedding:
   cache_dir: ".caches/embedding_cache"
   cache_enabled: true
 
-panel:
-  enabled: true
-  apply_to:
-    - geval
-  judges:
-    - provider: vertex
-      model: gemini-2.0-flash
-      temperature: 0.0
-
-    - provider: vertex
-      model: gemini-2.0-flash
-      temperature: 0.0
-
 # Lightspeed-stack API Configuration
 # To get real time data. Currently it supports lightspeed-stack API.
 # But can be easily integrated with other APIs with minimal change.
 api:
-  enabled: false                  # Enable API calls instead of using pre-filled data
-  api_base: http://localhost:8080      # Base API URL
+  enabled: true                        # Enable API calls instead of using pre-filled data
+  api_base: http://localhost:8080      # Base API URL (without version)
+  version: v1                          # API version (e.g., v1, v2)
   endpoint_type: streaming             # Use "streaming" or "query" endpoint
   timeout: 300                         # API request timeout in seconds
+
+  # Retry configuration for 429 Too Many Requests API errors
+  num_retries: 3                       # Number of retry attempts (default 3)
 
   # API input configuration
   provider: "openai"                   # LLM provider for queries
   model: "gpt-4o-mini"                 # Model to use for queries
   no_tools: null                       # Whether to bypass tools and MCP servers (optional)
   system_prompt: null                  # System prompt (default None)
+  # Extra parameters merged into API request payload (per-turn override in eval.yaml takes priority)
+  # Example: extra_request_params:
+  #            mode: troubleshooting
+  extra_request_params: null
 
   cache_dir: ".caches/api_cache"  # Directory with lightspeed-stack cache
   cache_enabled: true                  # Is lightspeed-stack cache enabled?
-  # Authentication via API_KEY environment variable only for MCP server
+  
+  # MCP Server Authentication Configuration
+  mcp_headers:
+    enabled: false                     # Enable MCP headers functionality
+    servers:                           # MCP server configurations
+      filesystem-tools:
+        env_var: API_KEY               # Environment variable containing the token/key
 
+  # Legacy authentication (fallback when mcp_headers is not configured or disabled)
+  # Authentication via API_KEY environment variable only for MCP server (without Server name)
 # Default metrics metadata
 metrics_metadata:
   # Turn-level metrics metadata
@@ -103,7 +135,7 @@ metrics_metadata:
     "script:action_eval":
       description: "Script-based evaluation for infrastructure/environment validation"
 
-    # GEval turn-level metrics 
+    # GEval turn-level metrics
     "geval:technical_accuracy":
       criteria: |
         Assess whether the response provides technically accurate information,
@@ -157,32 +189,52 @@ metrics_metadata:
       description: "Context maintenance and coherence across conversation turns"
 
 
-# Output Configuration
-output:
-  output_dir: "./eval_output"
-  base_filename: "evaluation"
-  enabled_outputs:          # Enable specific output types
-    - csv                   # Detailed results CSV
-    - json                  # Summary JSON with statistics
-    - txt                   # Human-readable summary
+# Storage Configuration
+# Configures how evaluation results are stored (file outputs and optional database)
+storage:
+  # File backend - outputs evaluation results to CSV, JSON, and TXT files
+  - type: "file"
+    output_dir: "./eval_output"
+    base_filename: "evaluation"
+    enabled_outputs:          # Enable specific output types
+      - csv                   # Detailed results CSV
+      - json                  # Summary JSON with statistics
+      - txt                   # Human-readable summary
 
-  # CSV columns to include
-  csv_columns:
-    - "conversation_group_id"
-    - "turn_id"
-    - "metric_identifier"
-    - "score"
-    - "judge_id" # used for panel of judges
-    - "threshold"
-    - "result"
-    - "reason"
-    - "query"
-    - "response"
-    - "execution_time"
-  # Config sections to include in the summary output file; used for tracking model params/metadata
-  summary_config_sections:
-    - llm
-    - panel_of_judges
+    # CSV columns to include
+    csv_columns:
+      - "conversation_group_id"
+      - "turn_id"
+      - "metric_identifier"
+      - "metric_metadata"
+      - "result"
+      - "score"
+      - "threshold"
+      - "reason"
+      - "execution_time"
+      - "query"
+      - "response"
+      - "api_input_tokens"
+      - "api_output_tokens"
+      # Streaming performance metrics (only populated when using streaming endpoint)
+      # - "time_to_first_token"    # Time to first token in seconds
+      # - "streaming_duration"      # Total streaming duration in seconds
+      # - "tokens_per_second"       # Output tokens per second throughput
+      - "judge_llm_input_tokens"
+      - "judge_llm_output_tokens"
+      - "judge_scores"
+      - "tool_calls"
+      - "contexts"
+      - "expected_response"
+      # - "expected_intent"
+      # - "expected_keywords"
+      # - "expected_tool_calls"
+    summary_config_sections:  # Save configs to json report
+      - core
+      - llm_pool
+      - judge_panel
+      - embedding
+      - api
 
 # Visualization settings
 visualization:

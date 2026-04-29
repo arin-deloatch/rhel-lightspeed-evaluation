@@ -188,3 +188,7 @@ depr*/
 
 # Proprietary config files for rls-evaluation
 prod_config*/
+
+# Secrets and credentials
+secrets.sh
+secret*.sh
