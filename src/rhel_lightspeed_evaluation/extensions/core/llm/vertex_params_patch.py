@@ -31,7 +31,7 @@ from lightspeed_evaluation.core.llm.litellm_patch import (
     _original_completion,
     litellm_state_lock,
 )
-from lightspeed_evaluation.core.llm.token_tracker import track_tokens
+from lightspeed_evaluation.core.llm.token_tracker import track_judge_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ def _completion_with_vertex_and_tracking(*args: Any, **kwargs: Any) -> Any:
     with _vertex_override(kwargs):
         response = _original_completion(*args, **kwargs)
     try:
-        track_tokens(response)
+        track_judge_tokens(response)
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Failed to track tokens for completion: %s", e)
     return response
@@ -79,7 +79,7 @@ async def _acompletion_with_vertex_and_tracking(*args: Any, **kwargs: Any) -> An
     with _vertex_override(kwargs):
         response = await _original_acompletion(*args, **kwargs)
     try:
-        track_tokens(response)
+        track_judge_tokens(response)
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Failed to track tokens for acompletion: %s", e)
     return response
