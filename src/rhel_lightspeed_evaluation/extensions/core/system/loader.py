@@ -39,9 +39,7 @@ class ConfigLoaderExt(ConfigLoader):
         conversation_level_metadata = metrics_metadata.get("conversation_level", {})
 
         quality_score_config = (
-            QualityScoreConfig(**quality_score_data)
-            if quality_score_data is not None
-            else None
+            QualityScoreConfig(**quality_score_data) if quality_score_data is not None else None
         )
 
         if quality_score_config is not None:
