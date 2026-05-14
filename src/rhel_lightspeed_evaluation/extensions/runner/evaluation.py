@@ -12,6 +12,7 @@ from lightspeed_evaluation.core.storage import FileBackendConfig, get_file_confi
 from lightspeed_evaluation.core.system.exceptions import (
     ConfigurationError,
     DataValidationError,
+    StorageError,
 )
 
 from rhel_lightspeed_evaluation.extensions.core.system import ConfigLoaderExt
@@ -66,14 +67,25 @@ def _print_summary(
         f"(Input: {summary['total_judge_llm_input_tokens']:,}, "
         f"Output: {summary['total_judge_llm_output_tokens']:,})"
     )
+
+    print(f"Embeddings: {summary['total_embedding_tokens']:,} tokens")
+
     if api_tokens:
         print(
             f"API Calls: {api_tokens['total_api_tokens']:,} tokens "
             f"(Input: {api_tokens['total_api_input_tokens']:,}, "
             f"Output: {api_tokens['total_api_output_tokens']:,})"
         )
-        total = summary["total_judge_llm_tokens"] + api_tokens["total_api_tokens"]
+        total = (
+            summary["total_judge_llm_tokens"]
+            + summary["total_embedding_tokens"]
+            + api_tokens["total_api_tokens"]
+        )
         print(f"Total: {total:,} tokens")
+    else:
+        total = summary["total_judge_llm_tokens"] + summary["total_embedding_tokens"]
+        if total > 0:
+            print(f"Total: {total:,} tokens")
 
 
 def run_evaluation(
@@ -109,6 +121,14 @@ def run_evaluation(
 
         apply_deepeval_watsonx_patch()
 
+        # litellm.drop_params=True strips vertex_project/vertex_location from kwargs.
+        # This patch redirects them through litellm module-level attributes instead.
+        from rhel_lightspeed_evaluation.extensions.core.llm.vertex_params_patch import (
+            apply_vertex_params_patch,
+        )
+
+        apply_vertex_params_patch()
+
         from lightspeed_evaluation.core.output import OutputHandler
         from lightspeed_evaluation.core.output.statistics import (
             calculate_api_token_usage,
@@ -131,6 +151,7 @@ def run_evaluation(
             eval_args.eval_data,
             tags=eval_args.tags,
             conv_ids=eval_args.conv_ids,
+            metrics=eval_args.metrics,
         )
 
         print(f"System config: {system_config.llm.provider}/{system_config.llm.model}")
@@ -190,6 +211,7 @@ def run_evaluation(
         RuntimeError,
         ConfigurationError,
         DataValidationError,
+        StorageError,
     ) as e:
         print(f"\nEvaluation failed: {e}")
         traceback.print_exc()
@@ -223,6 +245,12 @@ def main() -> int:
         nargs="+",
         default=None,
         help="Filter by conversation group IDs (run only specified conversations)",
+    )
+    parser.add_argument(
+        "--metrics",
+        nargs="+",
+        default=None,
+        help="Filter to only run specified metrics (e.g. custom:answer_correctness)",
     )
     parser.add_argument(
         "--cache-warmup",

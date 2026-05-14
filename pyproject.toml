@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rhel-lightspeed-evaluation"
-version = "0.2.0"
+version = "0.2.1"
 description = "An evaluation project for RHEL Lightspeed using the LSC Evaluation Framework."
 authors=[]
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = [
     "deepeval>=3.6.9",
     "ibm-watsonx-ai>=1.4.11",
     "lightspeed-evaluation",
-    "pydantic>=2.0,<2.12",
+    "pydantic>=2.0",
     "ruff>=0.14.11",
     "scipy>=1.14.0,<=1.16.2",
     "types-pyyaml>=6.0.12.20250915",
@@ -36,7 +36,7 @@ rls-evaluate = "rhel_lightspeed_evaluation.extensions.runner.evaluation:main"
 packages = ["src/rhel_lightspeed_evaluation"]
 
 [tool.uv.sources]
-lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "5170019ee003e025d434ca4255d5e261d6b692dc" }
+lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "f25b2622b79c0a940bd67916ff48c4281b99bc23" }
 
 [tool.ruff]
 line-length = 100
