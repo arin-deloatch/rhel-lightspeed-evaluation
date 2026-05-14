@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rhel-lightspeed-evaluation"
-version = "0.2.1"
+version = "0.3.0"
 description = "An evaluation project for RHEL Lightspeed using the LSC Evaluation Framework."
 authors=[]
 readme = "README.md"
