@@ -1,6 +1,7 @@
 """Extended API client that supports chat/completions endpoint."""
 
 import logging
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -39,10 +40,11 @@ class APIClientExt(BaseAPIClient):
     """
 
     def __init__(self, config: APIConfig | APIConfigExt):
-        self._is_chat_completions = config.endpoint_type == "chat/completions"
+        normalized_config = deepcopy(config)
+        self._is_chat_completions = normalized_config.endpoint_type == "chat/completions"
         if self._is_chat_completions:
-            config.endpoint_type = "query"
-        super().__init__(config)
+            normalized_config.endpoint_type = "query"
+        super().__init__(normalized_config)
 
     def query(
         self,
