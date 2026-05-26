@@ -1,6 +1,7 @@
 """Extended API client that supports chat/completions endpoint."""
 
 import logging
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -31,11 +32,19 @@ def _format_tool_calls(raw_tool_calls: list[Any]) -> list[list[dict[str, Any]]]:
 
 
 class APIClientExt(BaseAPIClient):
-    """Extended API client that supports 'chat/completions' endpoint type."""
+    """Extended API client that supports 'chat/completions' endpoint type.
+
+    For chat/completions, overrides the base query() to use _chat_completions_query.
+    For all other endpoint types (infer, streaming, query), delegates to the base
+    class which already handles routing.
+    """
 
     def __init__(self, config: APIConfig | APIConfigExt):
-        config.endpoint_type = "query"
-        super().__init__(config)
+        normalized_config = deepcopy(config)
+        self._is_chat_completions = normalized_config.endpoint_type == "chat/completions"
+        if self._is_chat_completions:
+            normalized_config.endpoint_type = "query"
+        super().__init__(normalized_config)
 
     def query(
         self,
@@ -44,7 +53,10 @@ class APIClientExt(BaseAPIClient):
         attachments: list[str] | None = None,
         extra_request_params: dict[str, Any] | None = None,
     ) -> APIResponseExt:
-        """Query the API using the chat/completions endpoint."""
+        """Query the API using the configured endpoint type."""
+        if not self._is_chat_completions:
+            return super().query(query, conversation_id, attachments, extra_request_params)
+
         if not self.client:
             raise APIError("API client not initialized")
 
