@@ -22,7 +22,7 @@ to work correctly in this repository.
 - Linter: `ruff check`. Run via `make lint`.
 - Type checker: `mypy`. Run via `make type-check`.
 - Line length: 100 characters.
-- Run `make lint`, `make type-check`, and `make test` before marking any change complete.
+- Run `make lint` and `make type-check` before marking any change complete.
 
 ## Commit style
 
