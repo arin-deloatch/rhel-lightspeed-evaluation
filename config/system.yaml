@@ -77,7 +77,7 @@ api:
 
   cache_dir: ".caches/api_cache"  # Directory with lightspeed-stack cache
   cache_enabled: true                  # Is lightspeed-stack cache enabled?
-  
+
   # MCP Server Authentication Configuration
   mcp_headers:
     enabled: false                     # Enable MCP headers functionality

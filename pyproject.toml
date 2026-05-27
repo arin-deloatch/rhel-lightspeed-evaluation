@@ -15,15 +15,14 @@ dependencies = [
     "ibm-watsonx-ai>=1.4.11",
     "lightspeed-evaluation",
     "pydantic>=2.0",
-    "ruff>=0.14.11",
     "scipy>=1.14.0,<=1.16.2",
-    "types-pyyaml>=6.0.12.20250915",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "types-pyyaml>=6.0.12.20250915",
     "pre-commit>=4.0.0",
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
@@ -37,6 +36,11 @@ packages = ["src/rhel_lightspeed_evaluation"]
 
 [tool.uv.sources]
 lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "f25b2622b79c0a940bd67916ff48c4281b99bc23" }
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+strict = false
 
 [tool.ruff]
 line-length = 100

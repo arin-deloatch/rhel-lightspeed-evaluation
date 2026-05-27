@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format type-check test test-cov clean pre-commit-install pre-commit-run
+.PHONY: help install install-dev lint format format-check type-check all uv-lock-check clean pre-commit-install pre-commit-run
 
 help:
 	@echo "Available commands:"
@@ -6,9 +6,10 @@ help:
 	@echo "  make install-dev       - Install development dependencies"
 	@echo "  make lint              - Run ruff linter"
 	@echo "  make format            - Format code with ruff"
+	@echo "  make format-check      - Check formatting without modifying files (used in CI)"
 	@echo "  make type-check        - Run mypy type checker"
-	@echo "  make test              - Run pytest"
-	@echo "  make test-cov          - Run pytest with coverage"
+	@echo "  make all               - Run format-check, lint, and type-check"
+	@echo "  make uv-lock-check     - Verify uv.lock is up to date"
 	@echo "  make pre-commit-install - Install pre-commit hooks"
 	@echo "  make pre-commit-run    - Run pre-commit on all files"
 	@echo "  make clean             - Remove cache and build artifacts"
@@ -26,14 +27,16 @@ format:
 	uv run ruff format .
 	uv run ruff check --fix .
 
+format-check:
+	uv run ruff format --check .
+
 type-check:
-	uv run mypy .
+	uv run mypy src/
 
-test:
-	uv run pytest
+all: format-check lint type-check
 
-test-cov:
-	uv run pytest --cov=. --cov-report=html --cov-report=term
+uv-lock-check:
+	uv lock --check
 
 pre-commit-install:
 	uv run pre-commit install

@@ -3,7 +3,6 @@
 Adds support for 'chat/completions' API endpoint type.
 """
 
-
 from lightspeed_evaluation.core.models import APIConfig
 from lightspeed_evaluation.core.models.agents import AgentsConfig, HttpApiAgentConfig
 from lightspeed_evaluation.core.models.system import SystemConfig
