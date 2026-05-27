@@ -5,6 +5,7 @@ This package provides extensions to the lightspeed-evaluation framework:
 - Extended pipeline and config loader for RHEL-specific API integration
 """
 
+from importlib.metadata import version
 from typing import TYPE_CHECKING
 
 from lightspeed_evaluation.core.system.lazy_import import create_lazy_getattr
@@ -21,7 +22,7 @@ if TYPE_CHECKING:
         EvaluationPipelineExt,
     )
 
-__version__ = "0.3.1"
+__version__ = version("rhel-lightspeed-evaluation")
 
 __author__ = "Arin DeLoatch"
 
