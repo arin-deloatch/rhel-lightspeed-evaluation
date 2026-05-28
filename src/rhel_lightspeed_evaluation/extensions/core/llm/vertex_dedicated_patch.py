@@ -103,15 +103,11 @@ def _handle_vertex_dedicated(manager: LLMManager) -> str:
 
     if not all([endpoint_id, project, region]):
         raise ConfigurationError(
-            "vertex_dedicated provider requires endpoint_id, project, and region "
-            "in parameters"
+            "vertex_dedicated provider requires endpoint_id, project, and region in parameters"
         )
 
     dns = _resolve_dedicated_dns(endpoint_id, project, region)
-    base_url = (
-        f"https://{dns}/v1/projects/{project}"
-        f"/locations/{region}/endpoints/{endpoint_id}"
-    )
+    base_url = f"https://{dns}/v1/projects/{project}/locations/{region}/endpoints/{endpoint_id}"
     params["base_url"] = base_url
     logger.info("Resolved vertex_dedicated endpoint: %s", base_url)
 
