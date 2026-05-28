@@ -129,6 +129,14 @@ def run_evaluation(
 
         apply_vertex_params_patch()
 
+        # Self-deployed Vertex AI Model Garden endpoints need dedicated DNS
+        # resolution and per-call GCP token refresh.
+        from rhel_lightspeed_evaluation.extensions.core.llm.vertex_dedicated_patch import (
+            apply_vertex_dedicated_patch,
+        )
+
+        apply_vertex_dedicated_patch()
+
         from lightspeed_evaluation.core.output import OutputHandler
         from lightspeed_evaluation.core.output.statistics import (
             calculate_api_token_usage,
