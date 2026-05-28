@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
-from lightspeed_evaluation.core.models import APIConfig, APIRequest
+from lightspeed_evaluation.core.models import APIConfig, APIRequest, APIResponse
 from lightspeed_evaluation.core.system.exceptions import APIError
 
 from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt, APIResponseExt
@@ -141,3 +141,44 @@ class APIClientExt(BaseAPIClient):
             raise
         except Exception as e:
             raise self._handle_unexpected_error(e, "chat/completions query") from e
+
+    def _rlsapi_infer_query(self, api_request):
+        """Override base class to fix duplicate /api/lightspeed/ in URL.
+
+        The base class hardcodes /api/lightspeed/{version}/infer, but api_base
+        already includes /api/lightspeed. This override uses /{version}/infer
+        to avoid the duplicate path.
+        """
+        if not self.client:
+            raise APIError("HTTP client not initialized")
+        try:
+            infer_request = self._build_infer_request(api_request)
+
+            response = self.client.post(
+                f"/{self.config.version}/infer",
+                json=infer_request,
+            )
+            response.raise_for_status()
+
+            response_data = response.json()
+            self._extract_infer_data(response_data)
+
+            if "response" not in response_data:
+                raise APIError("API response missing 'response' field")
+
+            self._format_infer_tool_calls(response_data)
+
+            return APIResponse.from_raw_response(response_data)
+
+        except httpx.TimeoutException as e:
+            raise self._handle_timeout_error("infer", self.config.timeout) from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (429, 502, 503, 504):
+                raise
+            raise self._handle_http_error(e) from e
+        except ValueError as e:
+            raise self._handle_validation_error(e) from e
+        except APIError:
+            raise
+        except Exception as e:
+            raise self._handle_unexpected_error(e, "infer query") from e
