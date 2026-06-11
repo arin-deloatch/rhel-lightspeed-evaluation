@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
-from lightspeed_evaluation.core.models import APIConfig, APIRequest, APIResponse
+from lightspeed_evaluation.core.models import APIConfig, APIRequest
 from lightspeed_evaluation.core.system.exceptions import APIError
 
 from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt, APIResponseExt
@@ -45,6 +45,9 @@ class APIClientExt(BaseAPIClient):
         if self._is_chat_completions:
             normalized_config.endpoint_type = "query"
         super().__init__(normalized_config)
+        if self._is_chat_completions:
+            retry_decorator = self._create_retry_decorator()
+            self._chat_completions_query_with_retry = retry_decorator(self._chat_completions_query)
 
     def query(
         self,
@@ -69,7 +72,7 @@ class APIClientExt(BaseAPIClient):
                 logger.debug("Returning cached response for query: '%s'", query)
                 return cached_response
 
-        response = self._chat_completions_query(api_request)
+        response = self._chat_completions_query_with_retry(api_request)
 
         if self.config.cache_enabled:
             self._add_response_to_cache(api_request, response)
@@ -134,6 +137,8 @@ class APIClientExt(BaseAPIClient):
         except httpx.TimeoutException as e:
             raise self._handle_timeout_error("chat/completions", self.config.timeout) from e
         except httpx.HTTPStatusError as e:
+            if e.response.status_code in (429, 502, 503, 504):
+                raise
             raise self._handle_http_error(e) from e
         except ValueError as e:
             raise self._handle_validation_error(e) from e
@@ -168,7 +173,7 @@ class APIClientExt(BaseAPIClient):
 
             self._format_infer_tool_calls(response_data)
 
-            return APIResponse.from_raw_response(response_data)
+            return APIResponseExt.from_raw_response(response_data)
 
         except httpx.TimeoutException as e:
             raise self._handle_timeout_error("infer", self.config.timeout) from e

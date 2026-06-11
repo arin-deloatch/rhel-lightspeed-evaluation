@@ -10,8 +10,8 @@ Usage in YAML config:
       provider: vertex_dedicated
       model: ibm-granite/granite-4.1-8b
       parameters:
-        endpoint_id: mg-endpoint-cdd2a610-ffe9-48d8-8370-9ab335a77f7a
-        project: rhel-lightspeed-650189
+        endpoint_id: <your-endpoint-id>
+        project: <your-gcp-project>
         region: us-central1
 
 Applied from run_evaluation(), after vertex_params_patch.
@@ -98,12 +98,12 @@ def _handle_vertex_dedicated(manager: LLMManager) -> str:
             "is required for the vertex_dedicated provider"
         )
 
-    params: dict[str, Any] = manager.config.parameters
+    params = dict(manager.config.parameters)
     endpoint_id = params.pop("endpoint_id", None)
     project = params.pop("project", None)
     region = params.pop("region", None)
 
-    if not all([endpoint_id, project, region]):
+    if not all((endpoint_id, project, region)):
         raise ConfigurationError(
             "vertex_dedicated provider requires endpoint_id, project, and region in parameters"
         )
@@ -111,6 +111,7 @@ def _handle_vertex_dedicated(manager: LLMManager) -> str:
     dns = _resolve_dedicated_dns(endpoint_id, project, region)
     base_url = f"https://{dns}/v1/projects/{project}/locations/{region}/endpoints/{endpoint_id}"
     params["base_url"] = base_url
+    manager.config.parameters = params
     logger.info("Resolved vertex_dedicated endpoint: %s", base_url)
 
     return f"openai/{manager.config.model}"
