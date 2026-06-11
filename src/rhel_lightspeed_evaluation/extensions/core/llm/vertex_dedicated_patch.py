@@ -42,7 +42,9 @@ def _get_gcp_credentials() -> Any:
     if _gcp_credentials is None:
         import google.auth
 
-        _gcp_credentials, _ = google.auth.default()
+        _gcp_credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
     return _gcp_credentials
 
 
@@ -137,7 +139,9 @@ def _apply_litellm_gcp_refresh() -> None:
 
     @wraps(_real_completion)
     def _completion_with_gcp_refresh(*args: Any, **kwargs: Any) -> Any:
-        if "prediction.vertexai.goog" in str(kwargs.get("api_base") or ""):
+        if "prediction.vertexai.goog" in str(
+            kwargs.get("api_base") or kwargs.get("base_url") or ""
+        ):
             import google.auth.transport.requests
 
             creds = _get_gcp_credentials()
@@ -149,7 +153,9 @@ def _apply_litellm_gcp_refresh() -> None:
 
     @wraps(_real_acompletion)
     async def _acompletion_with_gcp_refresh(*args: Any, **kwargs: Any) -> Any:
-        if "prediction.vertexai.goog" in str(kwargs.get("api_base") or ""):
+        if "prediction.vertexai.goog" in str(
+            kwargs.get("api_base") or kwargs.get("base_url") or ""
+        ):
             import google.auth.transport.requests
 
             creds = _get_gcp_credentials()
