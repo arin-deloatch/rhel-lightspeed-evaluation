@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/compare/v0.3.2...v0.4.0) (2026-06-12)
+
+
+### Features
+
+* add native `vertex_dedicated` provider for self-deployed Vertex AI endpoints ([1cbf859](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/commit/1cbf85904fc77bae40ef9ea69cb8299815f4fe10))
+
 ## [0.3.2](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/compare/v0.3.1...v0.3.2) (2026-05-27)
 
 
