@@ -13,8 +13,6 @@ spec = importlib.util.spec_from_file_location(
 assert spec is not None and spec.loader is not None
 sync = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sync)
-sync = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(sync)
 PIN = "a" * 40
 
 
