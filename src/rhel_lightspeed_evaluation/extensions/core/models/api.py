@@ -1,7 +1,7 @@
 from typing import Any
 
-from lightspeed_evaluation.core.models import APIResponse, AttachmentData
-from pydantic import BaseModel, ConfigDict, Field
+from lightspeed_evaluation.core.models import APIRequest, APIResponse, AttachmentData
+from pydantic import ConfigDict, Field
 
 
 class APIResponseExt(APIResponse):
@@ -21,7 +21,7 @@ class APIResponseExt(APIResponse):
         return super().from_raw_response(raw_data)
 
 
-class APIRequestExt(BaseModel):
+class APIRequestExt(APIRequest):
     """API request model for dynamic data generation."""
 
     model_config = ConfigDict(extra="forbid")
@@ -32,7 +32,6 @@ class APIRequestExt(BaseModel):
     )
     provider: str | None = Field(default=None, description="LLM provider")
     model: str | None = Field(default=None, description="LLM model")
-    no_tools: bool | None = Field(default=None, description="Disable tool usage")
     conversation_id: str | None = Field(default=None, description="Conversation ID for context")
     system_prompt: str | None = Field(default=None, description="System prompt override")
     attachments: list[AttachmentData] | None = Field(default=None, description="File attachments")
@@ -49,7 +48,6 @@ class APIRequestExt(BaseModel):
         """Create API request with optional attachments."""
         provider = kwargs.get("provider")
         model = kwargs.get("model")
-        no_tools = kwargs.get("no_tools")
         conversation_id = kwargs.get("conversation_id")
         system_prompt = kwargs.get("system_prompt")
         attachments = kwargs.get("attachments")
@@ -63,7 +61,6 @@ class APIRequestExt(BaseModel):
             messages=[{"role": "user", "content": query}],
             provider=provider,
             model=model,
-            no_tools=no_tools,
             conversation_id=conversation_id,
             system_prompt=system_prompt,
             attachments=attachment_data,

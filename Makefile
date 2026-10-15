@@ -1,7 +1,17 @@
-.PHONY: help install install-dev lint format format-check type-check all uv-lock-check clean pre-commit-install pre-commit-run
+.PHONY: help install install-dev lint format format-check type-check all uv-lock-check clean pre-commit-install pre-commit-run sync-evaluation check-evaluation-pin
+.DEFAULT_GOAL := help
+
+sync-evaluation:
+	uv run --no-project --python 3.12 scripts/sync_evaluation.py $(if $(EVALUATION_REV),--revision "$(EVALUATION_REV)")
+
+check-evaluation-pin:
+	uv run --no-project --python 3.12 scripts/sync_evaluation.py --check $(if $(EVALUATION_REV),--revision "$(EVALUATION_REV)")
 
 help:
 	@echo "Available commands:"
+	@echo "  make sync-evaluation   - Sync the upstream evaluation pin and run tests"
+	@echo "  make check-evaluation-pin - Check metadata and lockfile without changes"
+	@echo "    Optional EVALUATION_REV=<full SHA>; defaults to the pin in pyproject.toml."
 	@echo "  make install           - Install production dependencies"
 	@echo "  make install-dev       - Install development dependencies"
 	@echo "  make lint              - Run ruff linter"

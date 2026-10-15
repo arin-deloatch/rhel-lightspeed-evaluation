@@ -13,7 +13,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "deepeval>=3.6.9",
     "ibm-watsonx-ai>=1.4.11",
-    "lightspeed-evaluation",
+    "lightspeed-evaluation @ git+https://github.com/lightspeed-core/lightspeed-evaluation.git@990eeb7dc8b5ba855a3074e0ac78429991f94d95",
     "pydantic>=2.0",
     "scipy>=1.14.0,<=1.16.2",
 ]
@@ -34,8 +34,8 @@ rls-evaluate = "rhel_lightspeed_evaluation.extensions.runner.evaluation:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/rhel_lightspeed_evaluation"]
 
-[tool.uv.sources]
-lightspeed-evaluation = { git = "https://github.com/lightspeed-core/lightspeed-evaluation", rev = "f25b2622b79c0a940bd67916ff48c4281b99bc23" }
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.mypy]
 python_version = "3.12"
