@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/compare/v0.4.0...v0.5.0) (2026-10-23)
+
+
+### Features
+
+* support upstream 0.8 and resumable evaluations ([5312e2b](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/commit/5312e2bfe1db621e27e9e0b7805fb36fa4396bf8))
+* support upstream 0.8 and resumable evaluations ([e7735a1](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/commit/e7735a1add76388bf7514169b0d280bde5b9b0a5))
+
+
+### Bug Fixes
+
+* add missing evaluation pin synchronization script ([1d50dfb](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/commit/1d50dfb1709e1586af8a6d45ba0dc3986f2d35ad))
+
 ## [0.4.0](https://github.com/arin-deloatch/rhel-lightspeed-evaluation/compare/v0.3.2...v0.4.0) (2026-06-12)
 
 
