@@ -3,12 +3,19 @@
 Adds support for 'chat/completions' API endpoint type.
 """
 
+from typing import Annotated
+
+from lightspeed_evaluation.core.constants import SUPPORTED_ENDPOINT_TYPES
 from lightspeed_evaluation.core.models import APIConfig
-from lightspeed_evaluation.core.models.agents import AgentsConfig, HttpApiAgentConfig
+from lightspeed_evaluation.core.models.agents import (
+    AgentsConfig,
+    HttpApiAgentConfig,
+    ProposalAgentConfig,
+)
 from lightspeed_evaluation.core.models.system import SystemConfig
 from pydantic import Field, field_validator
 
-EXTENDED_ENDPOINT_TYPES = {"query", "streaming", "chat/completions", "infer"}
+EXTENDED_ENDPOINT_TYPES = {*SUPPORTED_ENDPOINT_TYPES, "chat/completions"}
 
 
 def _validate_extended_endpoint_type(v: str) -> str:
@@ -47,7 +54,13 @@ class HttpApiAgentConfigExt(HttpApiAgentConfig):
 class AgentsConfigExt(AgentsConfig):
     """Extended AgentsConfig that uses HttpApiAgentConfigExt."""
 
-    agents: dict[str, HttpApiAgentConfigExt] = Field(default_factory=dict)
+    agents: dict[
+        str,
+        Annotated[
+            HttpApiAgentConfigExt | ProposalAgentConfig,
+            Field(discriminator="type"),
+        ],
+    ] = Field(default_factory=dict)
 
 
 class SystemConfigExt(SystemConfig):

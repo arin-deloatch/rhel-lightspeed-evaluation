@@ -2,6 +2,8 @@
 
 # Core evaluation parameters
 core:
+  cache_enabled: false        # Global toggle for judge, embedding, and API caching
+  cache_base_dir: ".caches"  # Framework-managed cache subdirectories
   max_threads: 50             # Maximum number of threads, set to null for Python default. 50 is OK for bigger datasets
   fail_on_invalid_data: true  # If False don't fail on invalid conversations (like missing context for some metrics)
   skip_on_failure: false      # If True, skip remaining turns when a turn evaluation fails (can be overridden per conversation)
@@ -9,8 +11,6 @@ core:
 # Default values merge into each model; parameters supports extra provider keys; null removes an inherited parameter.
 llm_pool:
   defaults:
-    cache_enabled: true
-    cache_dir: ".caches/llm_cache"
     timeout: 300
     num_retries: 3
     parameters:
@@ -50,7 +50,7 @@ embedding:
   model: "text-embedding-3-small"
   provider_kwargs: {}
   cache_dir: ".caches/embedding_cache"
-  cache_enabled: true
+  cache_enabled: false
 
 # Lightspeed-stack API Configuration
 # To get real time data. Currently it supports lightspeed-stack API.
@@ -74,9 +74,6 @@ api:
   # Example: extra_request_params:
   #            mode: troubleshooting
   extra_request_params: null
-
-  cache_dir: ".caches/api_cache"  # Directory with lightspeed-stack cache
-  cache_enabled: true                  # Is lightspeed-stack cache enabled?
 
   # MCP Server Authentication Configuration
   mcp_headers:
@@ -107,11 +104,11 @@ metrics_metadata:
       threshold: 0.8
       description: "Did we fetch every fact the answer needs?"
 
-    "ragas:context_precision_with_reference":
+    "ragas:context_precision":
       threshold: 0.7
       description: "How precise the retrieved context is (with reference)"
 
-    "ragas:context_precision_without_reference":
+    "ragas:context_utilization":
       threshold: 0.7
       description: "How precise the retrieved context is (without reference)"
 

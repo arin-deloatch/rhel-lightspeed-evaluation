@@ -17,8 +17,6 @@ import logging
 import os
 from typing import Any
 
-import litellm
-from deepeval.models import LiteLLMModel
 from lightspeed_evaluation.core.llm.deepeval import DeepEvalLLMManager as _BaseDeepEvalLLMManager
 
 logger = logging.getLogger(__name__)
@@ -32,27 +30,13 @@ class DeepEvalLLMManager(_BaseDeepEvalLLMManager):
     """Same as upstream, but WatsonX models get credentials from WatsonX env vars."""
 
     def __init__(self, model_name: str, llm_params: dict[str, Any]) -> None:
-        self.model_name = model_name
-        self.llm_params = llm_params
-
-        self.setup_ssl_verify()
-        litellm.drop_params = True
-
-        extra: dict[str, Any] = {}
+        # Delegate retry/SSL setup to upstream; only override WatsonX credentials.
+        params = {**llm_params, "parameters": dict(llm_params.get("parameters", {}))}
         if model_name.startswith("watsonx/"):
             wx_key = _watsonx_api_key_from_env()
             if wx_key:
-                extra["api_key"] = wx_key
-
-        self.llm_model = LiteLLMModel(
-            model=self.model_name,
-            timeout=self.llm_params.get("timeout"),
-            num_retries=self.llm_params.get("num_retries"),
-            **extra,
-            **self.llm_params.get("parameters", {}),
-        )
-
-        logger.info("DeepEval LLM Manager initialized: %s", self.model_name)
+                params["parameters"]["api_key"] = wx_key
+        super().__init__(model_name, params)
 
 
 def apply_deepeval_watsonx_patch() -> None:

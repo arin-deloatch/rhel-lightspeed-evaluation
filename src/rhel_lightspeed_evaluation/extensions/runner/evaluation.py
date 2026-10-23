@@ -1,95 +1,51 @@
-"""LightSpeed Evaluation Framework (RHEL Extensions) - Main Evaluation Runner."""
+"""RHEL evaluation runner using upstream agent planning and result statistics."""
 
 import argparse
 import shutil
 import sys
 import traceback
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
-from lightspeed_evaluation.core.models.system import LLMPoolConfig, SystemConfig
-from lightspeed_evaluation.core.storage import FileBackendConfig, get_file_config
+from lightspeed_evaluation.core.storage import get_file_config
 from lightspeed_evaluation.core.system.exceptions import (
     ConfigurationError,
     DataValidationError,
     StorageError,
 )
+from lightspeed_evaluation.runner.evaluation import (
+    _aggregate_totals,
+    _clear_caches,
+    _copy_flat_output,
+    _print_run_summary,
+    create_eval_parser,
+)
 
+from rhel_lightspeed_evaluation.extensions.core.llm.patches import apply_patches
 from rhel_lightspeed_evaluation.extensions.core.system import ConfigLoaderExt
 
 
-def _clear_caches(system_config: SystemConfig) -> None:
-    """Clear all cache directories for warmup mode."""
-    cache_dirs: list[tuple[str, str]] = []
+def _evaluate(config: Any, data: Any, output_dir: str | None = None, **kwargs: Any) -> Any:
+    """Run the offline pipeline with RHEL extensions and close its resources."""
+    from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import EvaluationPipelineExt
 
-    pool = system_config.llm_pool
-    if isinstance(pool, LLMPoolConfig) and pool.defaults.cache_enabled:
-        cache_dirs.append(("LLM Judge (pool)", pool.defaults.cache_dir))
-    if system_config.llm.cache_enabled:
-        cache_dirs.append(("LLM Judge", system_config.llm.cache_dir))
-    if system_config.api.cache_enabled:
-        cache_dirs.append(("API", system_config.api.cache_dir))
-    if system_config.embedding.cache_enabled:
-        cache_dirs.append(("Embedding", system_config.embedding.cache_dir))
-
-    if not cache_dirs:
-        print("   No caches enabled to clear")
-        return
-
-    for cache_name, cache_dir in cache_dirs:
-        path = Path(cache_dir)
-        resolved_path = path.resolve()
-        if resolved_path in {Path("/"), Path.cwd()}:
-            raise DataValidationError(
-                f"Refusing to delete unsafe cache directory: '{resolved_path}'"
-            )
-        if path.exists():
-            shutil.rmtree(path)
-            print(f"   Cleared {cache_name} cache: {cache_dir}")
-        path.mkdir(parents=True, exist_ok=True)
+    pipeline = EvaluationPipelineExt(ConfigLoaderExt.from_config(config), output_dir)
+    try:
+        return pipeline.run_evaluation(data, **kwargs)
+    finally:
+        pipeline.close()
 
 
-def _print_summary(
-    summary: dict[str, Any],
-    api_tokens: dict[str, int] | None = None,
-) -> None:
-    """Print evaluation summary and token usage."""
-    print(
-        f"Pass: {summary['PASS']}, Fail: {summary['FAIL']}, "
-        f"Error: {summary['ERROR']}, Skipped: {summary['SKIPPED']}"
-    )
-    if summary["ERROR"] > 0:
-        print(f"{summary['ERROR']} evaluations had errors - check detailed report")
-
-    print("\nToken Usage Summary:")
-    print(
-        f"Judge LLM: {summary['total_judge_llm_tokens']:,} tokens "
-        f"(Input: {summary['total_judge_llm_input_tokens']:,}, "
-        f"Output: {summary['total_judge_llm_output_tokens']:,})"
-    )
-
-    print(f"Embeddings: {summary['total_embedding_tokens']:,} tokens")
-
-    if api_tokens:
-        print(
-            f"API Calls: {api_tokens['total_api_tokens']:,} tokens "
-            f"(Input: {api_tokens['total_api_input_tokens']:,}, "
-            f"Output: {api_tokens['total_api_output_tokens']:,})"
-        )
-        total = (
-            summary["total_judge_llm_tokens"]
-            + summary["total_embedding_tokens"]
-            + api_tokens["total_api_tokens"]
-        )
-        print(f"Total: {total:,} tokens")
-    else:
-        total = summary["total_judge_llm_tokens"] + summary["total_embedding_tokens"]
-        if total > 0:
-            print(f"Total: {total:,} tokens")
+def run_evaluation(eval_args: argparse.Namespace) -> dict[str, int] | None:
+    """Keep the checkpoint lock until all workers and reports have finished."""
+    with ExitStack() as scope:
+        return _run_evaluation(eval_args, scope)
 
 
-def run_evaluation(
+def _run_evaluation(  # pylint: disable=too-many-locals
     eval_args: argparse.Namespace,
+    scope: ExitStack,
 ) -> dict[str, int] | None:
     """Run the complete evaluation pipeline.
 
@@ -97,179 +53,175 @@ def run_evaluation(
         eval_args: Parsed command line arguments
 
     Returns:
-        dict: Summary statistics with keys TOTAL, PASS, FAIL, ERROR, SKIPPED
+        dict: Summary statistics with keys TOTAL, PASS, FAIL, ERROR, SKIPPED.
     """
-    print("LightSpeed Evaluation Framework (RHEL)")
+    print("🚀 Lightspeed Evaluation Framework")
     print("=" * 50)
 
     try:
-        print("Loading Configuration & Setting up environment...")
+        resume = getattr(eval_args, "resume", False)
+        if resume and not eval_args.output_dir:
+            raise ValueError("--resume requires an explicit --output-dir")
+        if resume and eval_args.cache_warmup:
+            raise ValueError("--resume cannot be combined with --cache-warmup")
+        print("🔧 Loading Configuration & Setting up environment...")
         loader = ConfigLoaderExt()
         system_config = loader.load_system_config(eval_args.system_config)
 
+        # Clear caches if cache warmup mode is enabled
         if eval_args.cache_warmup:
-            print("\nCache warmup mode: Clearing existing caches...")
+            print("\n🔥 Cache warmup mode: Clearing existing caches...")
             _clear_caches(system_config)
 
+        apply_patches()
+
         # Import heavy modules after environment is configured
-        print("\nLoading Heavy Modules...")
+        print("\n📋 Loading Heavy Modules...")
         # pylint: disable=import-outside-toplevel
-        # DeepEval's LiteLLMModel otherwise sends OPENAI_API_KEY to WatsonX IAM.
-        from rhel_lightspeed_evaluation.extensions.core.llm.deepeval_patch import (
-            apply_deepeval_watsonx_patch,
-        )
-
-        apply_deepeval_watsonx_patch()
-
-        # litellm.drop_params=True strips vertex_project/vertex_location from kwargs.
-        # This patch redirects them through litellm module-level attributes instead.
-        from rhel_lightspeed_evaluation.extensions.core.llm.vertex_params_patch import (
-            apply_vertex_params_patch,
-        )
-
-        apply_vertex_params_patch()
-
-        # Self-deployed Vertex AI Model Garden endpoints need dedicated DNS
-        # resolution and per-call GCP token refresh.
-        from rhel_lightspeed_evaluation.extensions.core.llm.vertex_dedicated_patch import (
-            apply_vertex_dedicated_patch,
-        )
-
-        apply_vertex_dedicated_patch()
-
         from lightspeed_evaluation.core.output import OutputHandler
-        from lightspeed_evaluation.core.output.statistics import (
-            calculate_api_token_usage,
-            calculate_basic_stats,
-        )
+        from lightspeed_evaluation.core.output.statistics import compute_overall_stats
+        from lightspeed_evaluation.core.storage import FileBackendConfig
         from lightspeed_evaluation.core.system import DataValidator
 
-        from rhel_lightspeed_evaluation.extensions.pipeline.evaluation import (
-            EvaluationPipelineExt,
+        from rhel_lightspeed_evaluation.extensions.pipeline.evaluation.checkpoint import (
+            CheckpointStore,
+            validate_storage,
+        )
+        from rhel_lightspeed_evaluation.extensions.runner.orchestrator import (
+            run as orchestrator_run,
         )
 
         # pylint: enable=import-outside-toplevel
-        print("Configuration loaded & Setup is done!")
+        print("✅ Configuration loaded & Setup is done !")
 
-        evaluation_data = DataValidator(
-            api_enabled=system_config.api.enabled,
+        # Load, filter, and validate evaluation data
+        data_validator = DataValidator(
+            api_enabled=system_config.agents is not None and system_config.agents.enabled,
             fail_on_invalid_data=system_config.core.fail_on_invalid_data,
             system_config=system_config,
-        ).load_evaluation_data(
+        )
+        evaluation_data = data_validator.load_evaluation_data(
             eval_args.eval_data,
             tags=eval_args.tags,
             conv_ids=eval_args.conv_ids,
             metrics=eval_args.metrics,
         )
+        dataset_metadata = data_validator.dataset_metadata
 
-        print(f"System config: {system_config.llm.provider}/{system_config.llm.model}")
+        output_dir = eval_args.output_dir or get_file_config(system_config.storage).output_dir
+        checkpoint_dir = Path(output_dir) / ".rhel-checkpoint"
+        if (Path(output_dir) / ".completed_ids").exists():
+            raise ValueError(
+                "Legacy fork checkpoints are unsupported; use a fresh output directory"
+            )
+        if resume:
+            validate_storage(system_config)
+            checkpoint = scope.enter_context(CheckpointStore(checkpoint_dir))
+            checkpoint.validate(system_config, evaluation_data, dataset_metadata)
+        elif checkpoint_dir.exists():
+            raise ValueError("Output contains checkpoints; use --resume or a fresh directory")
 
+        print(f"✅ System config: {system_config.llm.provider}/{system_config.llm.model}")
+
+        # Handle case where no conversations match the filter
         if len(evaluation_data) == 0:
-            print("\nNo conversation groups matched the filter criteria")
+            print("\n⚠️ No conversation groups matched the filter criteria")
+            print("   Nothing to evaluate - returning empty results")
             return {"TOTAL": 0, "PASS": 0, "FAIL": 0, "ERROR": 0, "SKIPPED": 0}
 
-        print("\nInitializing Evaluation Pipeline...")
-        pipeline = EvaluationPipelineExt(loader, eval_args.output_dir)
-        print("\nRunning Evaluation...")
-        try:
-            results = pipeline.run_evaluation(evaluation_data, eval_args.eval_data)
-        finally:
-            pipeline.close()
-
-        file_entries = [c for c in system_config.storage if isinstance(c, FileBackendConfig)]
-        if not file_entries:
-            print("\nGenerating Reports...")
-            file_config = get_file_config(system_config.storage)
-            output_handler = OutputHandler(
-                output_dir=eval_args.output_dir or file_config.output_dir,
-                base_filename=file_config.base_filename,
-                system_config=system_config,
-                file_config=file_config,
-            )
-            output_handler.generate_reports(results, evaluation_data)
-
-        print("\nEvaluation Complete!")
-        print(f"{len(results)} evaluations completed")
-        for fc in file_entries:
-            report_dir = Path(eval_args.output_dir or fc.output_dir).resolve()
-            print(f"Reports generated in: {report_dir}")
-        if not file_entries:
-            out_dir = Path(
-                eval_args.output_dir or get_file_config(system_config.storage).output_dir
-            ).resolve()
-            print(f"Reports generated in: {out_dir}")
-
-        summary = calculate_basic_stats(results)
-        api_tokens = (
-            calculate_api_token_usage(evaluation_data) if system_config.api.enabled else None
+        # Run evaluation
+        print("\n🔄 Running Evaluation...")
+        has_agents = (
+            system_config.agents is not None
+            and system_config.agents.enabled
+            and system_config.agents.default.agent
         )
-        _print_summary(summary, api_tokens)
 
-        return {
-            "TOTAL": summary["TOTAL"],
-            "PASS": summary["PASS"],
-            "FAIL": summary["FAIL"],
-            "ERROR": summary["ERROR"],
-            "SKIPPED": summary["SKIPPED"],
-        }
+        if not has_agents:
+            # Offline mode: run pipeline directly (no agents to orchestrate)
+            results = _evaluate(
+                system_config,
+                evaluation_data,
+                output_dir=eval_args.output_dir,
+                original_data_path=eval_args.eval_data,
+                dataset_metadata=dataset_metadata,
+                resume=resume,
+            )
+            file_entries = [c for c in system_config.storage if isinstance(c, FileBackendConfig)]
+            if not file_entries:
+                file_config = get_file_config(system_config.storage)
+                handler = OutputHandler(
+                    output_dir=eval_args.output_dir or file_config.output_dir,
+                    base_filename=file_config.base_filename,
+                    system_config=system_config,
+                    file_config=file_config,
+                )
+                handler.generate_reports(results, evaluation_data)
+            summary = compute_overall_stats(results)
+            out_dir = eval_args.output_dir or get_file_config(system_config.storage).output_dir
+            totals: dict[str, int] = {
+                "TOTAL": summary.total,
+                "PASS": summary.passed,
+                "FAIL": summary.failed,
+                "ERROR": summary.error,
+                "SKIPPED": summary.skipped,
+            }
+            print("\n🎉 Evaluation Complete!")
+            _print_run_summary(totals, output_dir=out_dir)
+            return totals
+
+        # Agent mode: run via orchestrator
+        output_dir = eval_args.output_dir or get_file_config(system_config.storage).output_dir
+        run_results = orchestrator_run(
+            system_config,
+            evaluation_data,
+            output_dir,
+            original_data_path=eval_args.eval_data,
+            dataset_metadata_dict=(dataset_metadata.model_dump() if dataset_metadata else None),
+            resume=resume,
+        )
+        if any(not result.success for result in run_results):
+            return None
+        totals = _aggregate_totals(run_results)
+        if resume and len(run_results) == 1:
+            # Upstream copies the whole tree, including locks and per-run checkpoints.
+            shutil.copytree(
+                run_results[0].output_dir,
+                output_dir,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns(".rhel-checkpoint"),
+            )
+        elif not resume:
+            _copy_flat_output(run_results, output_dir)
+
+        print("\n🎉 Evaluation Complete!")
+        _print_run_summary(totals, run_results=run_results)
+
+        return totals
 
     except (
-        FileNotFoundError,
+        OSError,
         ValueError,
         RuntimeError,
         ConfigurationError,
         DataValidationError,
         StorageError,
     ) as e:
-        print(f"\nEvaluation failed: {e}")
+        print(f"\n❌ Evaluation failed: {e}")
         traceback.print_exc()
         return None
 
 
 def main() -> int:
-    """Command line interface."""
-    parser = argparse.ArgumentParser(
-        description="LightSpeed Evaluation Framework / Tool (RHEL)",
-    )
+    """Run the RHEL CLI with upstream options and opt-in durable resume."""
+    parser = create_eval_parser()
     parser.add_argument(
-        "--system-config",
-        default="config/system.yaml",
-        help="Path to system configuration file (default: config/system.yaml)",
-    )
-    parser.add_argument(
-        "--eval-data",
-        default="config/evaluation_data.yaml",
-        help="Path to evaluation data file (default: config/evaluation_data.yaml)",
-    )
-    parser.add_argument("--output-dir", help="Override output directory (optional)")
-    parser.add_argument(
-        "--tags",
-        nargs="+",
-        default=None,
-        help="Filter by tags (run conversation groups with matching tags)",
-    )
-    parser.add_argument(
-        "--conv-ids",
-        nargs="+",
-        default=None,
-        help="Filter by conversation group IDs (run only specified conversations)",
-    )
-    parser.add_argument(
-        "--metrics",
-        nargs="+",
-        default=None,
-        help="Filter to only run specified metrics (e.g. custom:answer_correctness)",
-    )
-    parser.add_argument(
-        "--cache-warmup",
+        "--resume",
         action="store_true",
-        help="Enable cache warmup mode - rebuild caches without reading existing entries",
+        help="Save conversation checkpoints and resume matching work in --output-dir",
     )
-
-    eval_args = parser.parse_args()
-
-    summary = run_evaluation(eval_args)
-    return 0 if summary is not None else 1
+    args = parser.parse_args()
+    return 0 if run_evaluation(args) is not None else 1
 
 
 if __name__ == "__main__":

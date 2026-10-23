@@ -6,11 +6,11 @@ from typing import Any
 
 import httpx
 from lightspeed_evaluation.core.api import APIClient as BaseAPIClient
-from lightspeed_evaluation.core.models import APIConfig, APIRequest
+from lightspeed_evaluation.core.models import APIConfig, APIRequest, APIResponse
+from lightspeed_evaluation.core.models.agents import HttpApiAgentConfig
 from lightspeed_evaluation.core.system.exceptions import APIError
 
 from rhel_lightspeed_evaluation.extensions.core.models.api import APIRequestExt, APIResponseExt
-from rhel_lightspeed_evaluation.extensions.core.models.system import APIConfigExt
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class APIClientExt(BaseAPIClient):
     class which already handles routing.
     """
 
-    def __init__(self, config: APIConfig | APIConfigExt):
+    def __init__(self, config: APIConfig | HttpApiAgentConfig):
         normalized_config = deepcopy(config)
         self._is_chat_completions = normalized_config.endpoint_type == "chat/completions"
         if self._is_chat_completions:
@@ -55,7 +55,7 @@ class APIClientExt(BaseAPIClient):
         conversation_id: str | None = None,
         attachments: list[str] | None = None,
         extra_request_params: dict[str, Any] | None = None,
-    ) -> APIResponseExt:
+    ) -> APIResponse:
         """Query the API using the configured endpoint type."""
         if not self._is_chat_completions:
             return super().query(query, conversation_id, attachments, extra_request_params)
@@ -85,8 +85,12 @@ class APIClientExt(BaseAPIClient):
         conversation_id: str | None = None,
         attachments: list[str] | None = None,
         extra_request_params: dict[str, Any] | None = None,
-    ) -> APIRequestExt:
+    ) -> APIRequest:
         """Prepare API request with common parameters."""
+        if not self._is_chat_completions:
+            return super()._prepare_request(
+                query, conversation_id, attachments, extra_request_params
+            )
         resolved_extra = {**(self.config.extra_request_params or {})}
         if extra_request_params:
             resolved_extra.update(extra_request_params)
@@ -95,12 +99,18 @@ class APIClientExt(BaseAPIClient):
             messages=[{"role": "user", "content": query}],
             provider=self.config.provider,
             model=self.config.model,
-            no_tools=self.config.no_tools,
             conversation_id=conversation_id,
             system_prompt=self.config.system_prompt,
             attachments=attachments,
             extra_request_params=resolved_extra or None,
         )
+
+    def _extract_infer_data(self, response_data: dict[str, Any]) -> None:
+        """Preserve native RAG chunks returned by current Lightspeed Stack."""
+        super()._extract_infer_data(response_data)
+        chunks = response_data.get("data", {}).get("rag_chunks")
+        if chunks:
+            response_data["rag_chunks"] = chunks
 
     def _chat_completions_query(self, api_request: APIRequest) -> APIResponseExt:
         """Query the API using chat/completions endpoint."""
